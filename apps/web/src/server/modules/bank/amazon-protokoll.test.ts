@@ -77,6 +77,24 @@ describe.skipIf(!testDatabaseUrl)("Protokoll der Amazon-Abrechnungen (Postgres)"
     expect(await withActor(actor, (tx) => bank.amazonReportAbgeschlossen(tx, "R-GBP"))).toBe(true);
   });
 
+  it("offeneAmazonVersuche liefert je offener Report-ID den letzten Versuch, abgeschlossene nicht", async () => {
+    // Zwei Transaktionen, denn created_at ist der Beginn der Transaktion
+    await withActor(actor, (tx) => bank.protokolliereAmazonVersuch(tx, { reportId: "R-WECHSEL", ergebnis: "fehler", meldung: "erst kaputt" }));
+    await withActor(actor, (tx) =>
+      bank.protokolliereAmazonVersuch(tx, { reportId: "R-WECHSEL", ergebnis: "mehrdeutig", marketplace: "Amazon.fr", settlementId: "S-WECHSEL" }),
+    );
+    const { db } = await import("../../db/index.ts");
+    const offen = await bank.offeneAmazonVersuche(db);
+    expect([...offen.keys()].sort()).toEqual(["R-KAPUTT", "R-NL", "R-WECHSEL"]);
+    expect(offen.get("R-WECHSEL")).toEqual({ ergebnis: "mehrdeutig", marketplace: "Amazon.fr", settlementId: "S-WECHSEL" });
+    expect(offen.get("R-NL")).toEqual({ ergebnis: "kein_konto", marketplace: "Amazon.nl", settlementId: null });
+  });
+
+  it("uebernommeneAmazonSettlements nennt alle übernommenen Settlement-IDs aus Datei und Abruf", async () => {
+    const { db } = await import("../../db/index.ts");
+    expect([...(await bank.uebernommeneAmazonSettlements(db))].sort()).toEqual(["S-API", "S-DATEI"]);
+  });
+
   it("das Protokoll lässt sich weder ändern noch löschen", async () => {
     await expect(sql`update amazon_settlement_reports set meldung = 'x'`).rejects.toThrow();
     await expect(sql`delete from amazon_settlement_reports`).rejects.toThrow();

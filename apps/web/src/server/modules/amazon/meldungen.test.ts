@@ -27,7 +27,7 @@ describe("Meldungen des Amazon-Datenabrufs", () => {
     expect(meldungen).toEqual([
       { tone: "ok", text: "Amazon DE: 2 Abrechnungen, 23 neue Umsätze · Amazon FR: 1 Abrechnung, 1 neuer Umsatz" },
       { tone: "info", text: "Amazon DE, Abrechnung S2: Die Summe der Positionen weicht ab." },
-      { tone: "info", text: "1 Abrechnung nicht in Euro nicht übernommen (Amazon.co.uk in GBP); Haben übernimmt nur Euro." },
+      { tone: "info", text: "1 Abrechnung in Fremdwährung nicht übernommen (Amazon.co.uk in GBP); Haben übernimmt nur Euro." },
       { tone: "danger", text: "Kein Amazon-Konto für Amazon.nl: unter „Konto hinzufügen“ anlegen, dann holt der nächste Abruf die Abrechnung." },
       { tone: "danger", text: "Mehrere Amazon-Konten für Amazon.it: die Abrechnung bitte von Hand in das richtige Konto importieren." },
       { tone: "danger", text: "Report R9: kaputt" },

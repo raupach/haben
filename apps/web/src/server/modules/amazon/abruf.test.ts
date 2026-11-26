@@ -66,8 +66,10 @@ describe.skipIf(!testDatabaseUrl)("Amazon Datenabruf (Postgres)", () => {
 
   it("lädt abgeschlossene Reports nicht noch einmal; offene schon, und ein neues Konto bekommt seinen Report", async () => {
     const zweiter = await amazon.amazonDatenabruf(actor);
-    expect(api.stand.downloads.sort()).toEqual(["R-KAPUTT", "R-NL"]);
+    // R-NL bleibt liegen, solange es kein Konto für Amazon.nl gibt; nur der kaputte Report wird erneut geladen
+    expect(api.stand.downloads).toEqual(["R-KAPUTT"]);
     expect(zweiter.schonAbgerufen).toBe(3);
+    expect(zweiter.ohneKonto).toEqual(["Amazon.nl"]);
     const nl = (await bank.createProviderAccount(actor, { name: "Amazon.nl", provider: "amazon", marketplace: "Amazon.nl" })).id;
     expect((await amazon.amazonDatenabruf(actor)).uebernommen.map((u) => u.marketplace)).toEqual(["Amazon.nl"]);
     expect(await umsaetze(nl)).toBe(3);
@@ -139,6 +141,35 @@ describe.skipIf(!testDatabaseUrl)("Amazon Datenabruf (Postgres)", () => {
     expect(erster.nichtGeprueft).toBe(2);
     api.stand.drossel = Infinity;
     expect((await amazon.amazonDatenabruf(actor)).uebernommen.map((u) => u.settlementId)).toEqual(["S-D2", "S-D3"]);
+  });
+
+  it("offene Reports ohne Konto verdrängen unter der Drosselung keine neue Abrechnung", async () => {
+    api.stand.reports = [
+      report("R-V1", { settlementId: "S-V1", marketplace: "Amazon.es", order: "501-1" }),
+      report("R-V2", { settlementId: "S-V2", marketplace: "Amazon.es", order: "501-2" }),
+      report("R-V3", { settlementId: "S-V3", marketplace: "Amazon.es", order: "501-3" }),
+    ];
+    expect((await amazon.amazonDatenabruf(actor)).ohneKonto).toEqual(["Amazon.es", "Amazon.es", "Amazon.es"]);
+    api.stand.reports.push(report("R-V-NEU", { settlementId: "S-V-NEU", marketplace: "Amazon.de", order: "302-41" }));
+    api.stand.downloads = [];
+    api.stand.drossel = 2;
+    const e = await amazon.amazonDatenabruf(actor);
+    expect(api.stand.downloads).toEqual(["R-V-NEU"]);
+    expect(e.uebernommen.map((u) => u.settlementId)).toEqual(["S-V-NEU"]);
+    expect(e.ohneKonto).toEqual(["Amazon.es", "Amazon.es", "Amazon.es"]);
+    expect(e.nichtGeprueft).toBe(0);
+  });
+
+  it("eine nach „mehrdeutig“ von Hand importierte Abrechnung erledigt den Report", async () => {
+    const bytes = amazonReport({ settlementId: "S-M1", marketplace: "Amazon.fr", order: "403-41" });
+    api.stand.reports = [{ reportId: "R-M1", bytes, createdTime: "2026-11-23T00:00:00Z" }];
+    const erster = await amazon.amazonDatenabruf(actor);
+    expect(erster.mehrdeutig).toEqual(["Amazon.fr"]);
+    expect(await bank.importStatement(actor, { bytes, filename: "m1.txt" }, konten["Amazon.fr"]!)).toMatchObject({ added: 3 });
+    api.stand.downloads = [];
+    const zweiter = await amazon.amazonDatenabruf(actor);
+    expect(api.stand.downloads).toEqual([]);
+    expect(zweiter).toMatchObject({ schonAbgerufen: 1, mehrdeutig: [], ohneKonto: [], uebernommen: [], fehler: [] });
   });
 
   it("zwei gleichzeitige Abrufe übernehmen jeden Report einmal", async () => {

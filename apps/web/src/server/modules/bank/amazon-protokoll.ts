@@ -1,5 +1,5 @@
 import type { ParsedStatement } from "@haben/import";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { type Db, schema, type Tx } from "../../db/index.ts";
 import type { AmazonReportErgebnis } from "../../db/schema.ts";
 
@@ -76,4 +76,35 @@ export async function amazonReportAbgeschlossen(tx: Tx, reportId: string): Promi
     .where(and(eq(t.reportId, reportId), inArray(t.ergebnis, ABGESCHLOSSEN)))
     .limit(1);
   return row !== undefined;
+}
+
+export interface OffenerAmazonVersuch {
+  ergebnis: "kein_konto" | "mehrdeutig" | "fehler";
+  marketplace: string | null;
+  settlementId: string | null;
+}
+
+/** Je nicht abgeschlossener Report-ID der letzte Versuch (nach created_at, dann id) */
+export async function offeneAmazonVersuche(leser: Tx | Db): Promise<Map<string, OffenerAmazonVersuch>> {
+  const rows = await leser
+    .select({ reportId: t.reportId, ergebnis: t.ergebnis, marketplace: t.marketplace, settlementId: t.settlementId })
+    .from(t)
+    .where(isNotNull(t.reportId))
+    .orderBy(asc(t.createdAt), asc(t.id));
+  const abgeschlossen = new Set(rows.filter((r) => ABGESCHLOSSEN.includes(r.ergebnis)).map((r) => r.reportId!));
+  const offen = new Map<string, OffenerAmazonVersuch>();
+  for (const r of rows) {
+    if (abgeschlossen.has(r.reportId!)) continue;
+    offen.set(r.reportId!, { ergebnis: r.ergebnis as OffenerAmazonVersuch["ergebnis"], marketplace: r.marketplace, settlementId: r.settlementId });
+  }
+  return offen;
+}
+
+/** Settlement-IDs, die übernommen sind, aus Datei oder Abruf */
+export async function uebernommeneAmazonSettlements(leser: Tx | Db): Promise<Set<string>> {
+  const rows = await leser
+    .select({ settlementId: t.settlementId })
+    .from(t)
+    .where(and(isNotNull(t.settlementId), eq(t.ergebnis, "uebernommen")));
+  return new Set(rows.map((r) => r.settlementId!));
 }

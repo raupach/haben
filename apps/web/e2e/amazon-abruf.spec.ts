@@ -19,8 +19,9 @@ const TOKEN = "Atzr|e2e-refresh-token";
 let page: Page;
 let pageErrors: string[] = [];
 let amazon: Server;
-/** Antwortet die Report-Datei erst nach einer Pause, damit der gesperrte Knopf sichtbar ist */
-let pause = 0;
+/** Hält die Report-Datei zurück, bis der Test sie freigibt, damit der gesperrte Knopf sichtbar ist */
+let tor: Promise<void> = Promise.resolve();
+let freigeben: (() => void) | null = null;
 
 const HEADER =
   "settlement-id\tsettlement-start-date\tsettlement-end-date\tdeposit-date\ttotal-amount\tcurrency\ttransaction-type\torder-id\tmerchant-order-id\tadjustment-id\tshipment-id\tmarketplace-name\tamount-type\tamount-description\tamount\tfulfillment-id\tposted-date\tposted-date-time\torder-item-code\tmerchant-order-item-id\tmerchant-adjustment-item-id\tsku\tquantity-purchased\tpromotion-id";
@@ -59,10 +60,10 @@ async function amazonAttrappe(): Promise<Server> {
       }
       if (url.pathname === "/reports/2021-06-30/documents/DOC-E2E") return json(200, { url: `http://127.0.0.1:${AMAZON_PORT}/s3/DOC-E2E` });
       if (url.pathname === "/s3/DOC-E2E") {
-        setTimeout(() => {
+        void tor.then(() => {
           response.writeHead(200, { "content-type": "text/plain; charset=UTF-8" });
           response.end(REPORT);
-        }, pause);
+        });
         return;
       }
       json(404, {});
@@ -134,11 +135,15 @@ test("Ohne Amazon-Konto kein Knopf; mit Konto holt der Abruf die Abrechnung, ges
       sql`insert into bank_accounts (name, purpose, provider, ledger_index, marketplace) values ('Amazon.de', 'zahlungsdienstleister', 'amazon', 1, 'Amazon.de')`,
   );
   await gehe(page, "/bank");
-  pause = 1500;
-  await knopf().click();
-  await expect(page.getByRole("button", { name: "Ruft ab …" })).toBeDisabled();
-  await expect(page.getByText("Amazon.de: 1 Abrechnung, 3 neue Umsätze")).toBeVisible();
-  pause = 0;
+  tor = new Promise<void>((resolve) => (freigeben = resolve));
+  try {
+    await knopf().click();
+    await expect(page.getByRole("button", { name: "Ruft ab …" })).toBeDisabled();
+    freigeben?.();
+    await expect(page.getByText("Amazon.de: 1 Abrechnung, 3 neue Umsätze")).toBeVisible();
+  } finally {
+    freigeben?.();
+  }
   expect(await mitDatenbank((sql) => sql`select count(*)::int as n from bank_transactions`)).toEqual([{ n: 3 }]);
 
   await knopf().click();

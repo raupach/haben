@@ -27,7 +27,7 @@ export function abrufMeldungen(e: AmazonAbrufErgebnis): AbrufMeldung[] {
     const liste = e.fremdwaehrung.map((f) => `${f.marketplace} in ${f.currency}`).join(", ");
     meldungen.push({
       tone: "info",
-      text: `${anzahl(e.fremdwaehrung.length, "Abrechnung", "Abrechnungen")} nicht in Euro nicht übernommen (${liste}); Haben übernimmt nur Euro.`,
+      text: `${anzahl(e.fremdwaehrung.length, "Abrechnung", "Abrechnungen")} in Fremdwährung nicht übernommen (${liste}); Haben übernimmt nur Euro.`,
     });
   }
   for (const m of new Set(e.ohneKonto)) {

@@ -1,5 +1,5 @@
 import { AmazonSpApiError, type AmazonSettlementReportInfo, parseStatement, readAmazonSettlementHead, StatementParseError } from "@haben/import";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { withActor } from "../../db/actor.ts";
 import { db, schema } from "../../db/index.ts";
 import { sha256Of } from "../../storage.ts";
@@ -8,17 +8,21 @@ import {
   amazonReportAbgeschlossen,
   BankError,
   keineExterneQuelle,
+  offeneAmazonVersuche,
   protokolliereAmazonVersuch,
   storeStatement,
+  uebernommeneAmazonSettlements,
   type AmazonVersuch,
 } from "../bank/index.ts";
+import { waehleReports } from "./auswahl.ts";
 import { amazonFehlertext, amazonSpClientFor, AmazonSpError, loadAmazonSpConnection } from "./connections.ts";
 
 /*
- * Amazon Datenabruf (#1947): holt alle Settlement Reports, die Amazon noch bereithält und die nicht abgeschlossen sind,
- * ältester zuerst, und übernimmt jeden über storeStatement in das eine Amazon-Konto seines Marktplatzes. Den Marktplatz
+ * Amazon Datenabruf (#1947): holt die Settlement Reports, die Amazon noch bereithält und die nicht abgeschlossen sind,
+ * zuerst nie versuchte, ältester zuerst (Auswahl in auswahl.ts; Reports ohne Konto oder mit zwei Konten bleiben liegen,
+ * bis sich daran etwas ändert), und übernimmt jeden über storeStatement in das eine Amazon-Konto seines Marktplatzes. Den Marktplatz
  * nennt nur die Datei. Jeder Report ist eine eigene Transaktion: Bricht der Abruf ab (Drosselung nach etwa 15
- * Downloads), bleibt Übernommenes, und der nächste Abruf macht weiter. Die Sperre der Zugangszeile reiht parallele
+ * Downloads), bleibt Übernommenes, und der nächste Abruf macht weiter. Eine feste Advisory-Sperre reiht parallele
  * Abrufe hintereinander; danach prüft jeder erneut, ob der Report schon abgeschlossen ist.
  */
 
@@ -41,7 +45,7 @@ async function amazonKonten(): Promise<Map<string, Konto[]>> {
   const rows = await db
     .select({ id: schema.bankAccounts.id, name: schema.bankAccounts.name, marketplace: schema.bankAccounts.marketplace })
     .from(schema.bankAccounts)
-    .where(and(eq(schema.bankAccounts.provider, "amazon"), isNull(schema.bankAccounts.excludedAt)));
+    .where(and(eq(schema.bankAccounts.provider, "amazon"), isNull(schema.bankAccounts.excludedAt), eq(schema.bankAccounts.purpose, "zahlungsdienstleister")));
   const konten = new Map<string, Konto[]>();
   for (const r of rows) {
     if (!r.marketplace) continue;
@@ -64,10 +68,18 @@ export async function amazonDatenabruf(actor: string): Promise<AmazonAbrufErgebn
     throw new AmazonSpError(amazonFehlertext(error));
   }
   const ergebnis: AmazonAbrufErgebnis = { uebernommen: [], fremdwaehrung: [], ohneKonto: [], mehrdeutig: [], fehler: [], schonAbgerufen: 0, nichtGeprueft: 0 };
-  const abgeschlossen = await abgeschlosseneAmazonReports(db);
-  const offen = reports.filter((r) => !abgeschlossen.has(r.reportId)).sort((a, b) => a.createdTime.localeCompare(b.createdTime));
-  ergebnis.schonAbgerufen = reports.length - offen.length;
   const konten = await amazonKonten();
+  const auswahl = waehleReports(
+    reports,
+    await abgeschlosseneAmazonReports(db),
+    await offeneAmazonVersuche(db),
+    await uebernommeneAmazonSettlements(db),
+    (marketplace) => konten.get(marketplace.toLowerCase())?.length ?? 0,
+  );
+  const offen = auswahl.zuLaden;
+  ergebnis.schonAbgerufen = auswahl.schonAbgerufen;
+  ergebnis.ohneKonto.push(...auswahl.ohneKonto);
+  ergebnis.mehrdeutig.push(...auswahl.mehrdeutig);
   for (const [i, report] of offen.entries()) {
     let bytes: Uint8Array;
     try {
@@ -140,8 +152,8 @@ async function verarbeite(
   const filename = `amazon-settlement-${head.settlementId}.txt`;
   try {
     const result = await withActor(actor, async (tx) => {
-      // Reiht parallele Abrufe hintereinander; danach sieht dieser, was der andere abgeschlossen hat
-      await tx.select({ id: schema.amazonSpConnections.id }).from(schema.amazonSpConnections).for("update");
+      // Reiht parallele Abrufe hintereinander (feste Sperre, unabhängig vom Zugang); danach sieht dieser, was der andere abgeschlossen hat
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('haben-amazon-datenabruf', 0))`);
       if (await amazonReportAbgeschlossen(tx, report.reportId)) return null;
       // Ein Konto, eine Quelle (#306): liefert schon ein Dienst über die REST-API in dieses Konto, kein Abruf
       await keineExterneQuelle(tx, [konto.id]);
