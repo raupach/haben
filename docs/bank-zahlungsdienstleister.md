@@ -172,7 +172,7 @@ Statt jeden Settlement Report in Seller Central herunterzuladen, kann Haben die 
 - Amazon hält Reports 90 Tage ab ihrer Erzeugung bereit. Ältere Abrechnungen kommen über den Dateiimport. Erzeugt Amazon eine alte Abrechnung neu (etwa nach einem Download in Seller Central), kommt sie mit 0 neuen Umsätzen.
 - Mehrere Konten für einen Marktplatz stehen in einer roten Zeile.
 
-**Ablauf:** **Amazon Datenabruf** startet den Abruf im Hintergrund und kehrt sofort zurück. Eine Statuszeile unter den Schaltflächen zeigt die Phase: „Fragt Amazon nach den Abrechnungen …“ oder „Report n von m …“. Die Seite darf man verlassen und neu laden; die Zeile erscheint wieder. Es läuft höchstens ein Abruf je Serverprozess. Nach einem Neustart des Servers fehlt nur die Anzeige.
+**Ablauf:** **Amazon Datenabruf** startet den Abruf im Hintergrund und kehrt sofort zurück. Eine Statuszeile unter den Schaltflächen zeigt die Phase: „Fragt Amazon nach den Abrechnungen …“ oder „Report n von m …“; wartet der Abruf wegen der Drosselung, nennt sie auch die ungefähre Restzeit. Die Seite darf man verlassen und neu laden; die Zeile erscheint wieder. Es läuft höchstens ein Abruf je Serverprozess. Nach einem Neustart des Servers fehlt nur die Anzeige.
 
 - Amazon erlaubt etwa 15 Downloads am Stück, danach ungefähr einen je Minute. Drosselt Amazon, wartet Haben (Retry-After von Amazon, sonst 60 Sekunden, höchstens 5 Minuten je Wartezeit) und lädt denselben Report erneut. Die Zeile nennt den nächsten Versuch: „Amazon drosselt die Abrufe: … nächster Versuch um HH:MM:SS Uhr“.
 - Der Stand des Abrufs gilt je Serverprozess. Laufen mehrere Instanzen, sieht die Seite ihn nur, wenn die Abfrage denselben Prozess erreicht; doppelt übernommen wird trotzdem nichts.

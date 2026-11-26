@@ -2,6 +2,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import type { ImportMessage } from "../../components/BankImportMeldungen.tsx";
+import { restMinuten } from "../../lib/amazon-restzeit.ts";
 import { errorMessage } from "../../lib/format.ts";
 import { amazonDatenabrufAbbrechenFn, amazonDatenabrufStandFn, amazonDatenabrufStartenFn } from "../../server/functions/amazon.ts";
 
@@ -10,12 +11,17 @@ type Stand = NonNullable<Awaited<ReturnType<typeof amazonDatenabrufStandFn>>>;
 const uhrzeit = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 /** Statuszeile eines laufenden Abrufs: die Phase für die Live-Region, „zuletzt“ daneben */
-export function laufText(s: Stand): { phase: string; zuletzt: string | null } {
+export function laufText(s: Stand, jetzt = Date.now()): { phase: string; zuletzt: string | null } {
   if (s.abbrechenAngefragt) return { phase: "Wird nach dem laufenden Report beendet …", zuletzt: null };
   if (s.phase === "liste") return { phase: "Fragt Amazon nach den Abrechnungen …", zuletzt: null };
   const nr = `Report ${s.nummer} von ${s.gesamt}`;
-  if (s.phase === "warten" && s.wartenBis)
-    return { phase: `Amazon drosselt die Abrufe: ${nr}, nächster Versuch um ${uhrzeit(s.wartenBis)} Uhr`, zuletzt: null };
+  if (s.phase === "warten" && s.wartenBis) {
+    const min = restMinuten({ nummer: s.nummer, gesamt: s.gesamt, wartenBis: s.wartenBis }, jetzt);
+    return {
+      phase: `Amazon drosselt die Abrufe: ${nr}, nächster Versuch um ${uhrzeit(s.wartenBis)} Uhr · noch etwa ${min === 1 ? "1 Minute" : `${min} Minuten`}`,
+      zuletzt: null,
+    };
+  }
   return { phase: `${nr} …`, zuletzt: s.zuletzt };
 }
 
