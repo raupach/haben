@@ -16,6 +16,7 @@ import { schema, type Tx } from "../../db/index.ts";
 const ABRUF_NAMEN: Record<string, string> = {
   enablebanking: "der Bankabruf",
   etsy: "der Etsy-Abruf",
+  amazon: "der Amazon-Abruf",
   paypal: "der PayPal-Abruf",
   stripe: "der Stripe-Abruf",
 } satisfies Record<(typeof INTERNAL_PROVIDERS)[number], string>;

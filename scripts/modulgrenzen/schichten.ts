@@ -33,6 +33,7 @@ export const SCHICHTEN = [
   "datenimport",
   "instanzwechsel",
   "stores",
+  "amazon",
   "etsy",
   "zahlungsdienstleister",
   "mcp",

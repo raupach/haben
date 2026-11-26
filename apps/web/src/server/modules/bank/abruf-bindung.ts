@@ -19,6 +19,10 @@ const ANBINDUNGEN = {
   enablebanking: sql`select (a->>'bankAccountId')::uuid from ${schema.bankConnections} c, jsonb_array_elements(c.accounts) a`,
   // Der Abruf schreibt in das älteste Konto des Dienstleisters (providerAccount in etsy/import.ts)
   etsy: pspKonto("etsy", sql`exists (select 1 from ${schema.etsyConnections} where ${schema.etsyConnections.shopId} <> '')`),
+  // Amazon (#1947): alle Amazon-Konten, sobald der Zugang eingerichtet ist; der Abruf wählt das Konto nach dem Marktplatz der Abrechnung
+  amazon: sql`select ${schema.bankAccounts.id} from ${schema.bankAccounts}
+    where ${schema.bankAccounts.purpose} = 'zahlungsdienstleister' and ${schema.bankAccounts.provider} = 'amazon'
+      and exists (select 1 from ${schema.amazonSpConnections})`,
   zahlungsdienstleister: sql`select coalesce(c.bank_account_id, (select b.id from ${schema.bankAccounts} b
       where b.purpose = 'zahlungsdienstleister' and b.provider = c.provider
         and b.id not in (select o.bank_account_id from ${schema.pspConnections} o where o.bank_account_id is not null)
@@ -35,7 +39,7 @@ function pspKonto(provider: string, verbunden: SQL = sql`true`): SQL {
     order by ${schema.bankAccounts.createdAt} limit 1)`;
 }
 
-/** Konten mit irgendeiner Quelle: Quellenbindung (auch extern und ohne Stichtag), Bankabruf, FinTS, Etsy und die Zahlungsdienstleister mit Adapter */
+/** Konten mit irgendeiner Quelle: Quellenbindung (auch extern und ohne Stichtag), Bankabruf, FinTS, Etsy, Amazon und die Zahlungsdienstleister mit Adapter */
 export async function gebundeneKonten(tx: Tx | Db): Promise<string[]> {
   const teile = [sql`select ${schema.importSources.bankAccountId} from ${schema.importSources}`, FINTS, ...Object.values(ANBINDUNGEN)];
   const rows = await tx.execute<{ id: string }>(sql`select distinct id from (${sql.join(teile, sql` union all `)}) k(id) where id is not null`);

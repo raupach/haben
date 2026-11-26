@@ -124,6 +124,10 @@ const envSchema = z
     PAYPAL_API_URL: z.string().url().optional(),
     /** Stripe-API: nur im E2E-Durchlauf „stripe-abruf“ auf die nachgebaute API gesetzt, sonst gilt https://api.stripe.com */
     STRIPE_API_URL: z.string().url().optional(),
+    /** Selling Partner API von Amazon (#1947): nur im E2E-Durchlauf „amazon-abruf“ auf die nachgebaute API gesetzt, sonst https://sellingpartnerapi-eu.amazon.com */
+    AMAZON_SP_API_URL: z.string().url().optional(),
+    /** Anmeldung bei Login with Amazon: nur im E2E-Durchlauf „amazon-abruf“ gesetzt, sonst https://api.amazon.com/auth/o2/token */
+    AMAZON_LWA_TOKEN_URL: z.string().url().optional(),
     /** Instanzen der eigenen Firmen zum Wechseln in der Navigation (#504): „Name|https://adresse“, getrennt durch „;“ */
     HABEN_FIRMEN: z.string().optional(),
     /** Firmenportal über den Instanzen (#504, Stufe 2): die Zeile „Zum Firmenportal“ führt dorthin; nur mit SSO, nicht mit HABEN_FIRMEN */
