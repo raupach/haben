@@ -28,6 +28,7 @@ export * from "./accountable/index.ts";
 export * from "./fastbill/index.ts";
 export * from "./enablebanking/index.ts";
 export * from "./paypal/index.ts";
+export * from "./amazon-sp/index.ts";
 export * from "./stripe/index.ts";
 export * from "./fints/index.ts";
 export * from "./importvertrag/index.ts";
