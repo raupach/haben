@@ -9,14 +9,21 @@ type Stand = NonNullable<Awaited<ReturnType<typeof amazonDatenabrufStandFn>>>;
 
 const uhrzeit = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-/** Statuszeile eines laufenden Abrufs */
-export function laufText(s: Stand): string {
-  if (s.abbrechenAngefragt) return "Wird nach dem laufenden Report beendet …";
-  if (s.phase === "liste") return "Fragt Amazon nach den Abrechnungen …";
+/** Statuszeile eines laufenden Abrufs: die Phase für die Live-Region, „zuletzt“ daneben */
+export function laufText(s: Stand): { phase: string; zuletzt: string | null } {
+  if (s.abbrechenAngefragt) return { phase: "Wird nach dem laufenden Report beendet …", zuletzt: null };
+  if (s.phase === "liste") return { phase: "Fragt Amazon nach den Abrechnungen …", zuletzt: null };
   const nr = `Report ${s.nummer} von ${s.gesamt}`;
-  if (s.phase === "warten" && s.wartenBis) return `Amazon drosselt die Abrufe: ${nr}, nächster Versuch um ${uhrzeit(s.wartenBis)} Uhr`;
-  return s.zuletzt ? `${nr} … · zuletzt: ${s.zuletzt}` : `${nr} …`;
+  if (s.phase === "warten" && s.wartenBis)
+    return { phase: `Amazon drosselt die Abrufe: ${nr}, nächster Versuch um ${uhrzeit(s.wartenBis)} Uhr`, zuletzt: null };
+  return { phase: `${nr} …`, zuletzt: s.zuletzt };
 }
+
+export type LaufText = ReturnType<typeof laufText>;
+
+const NICHT_VERFUEGBAR =
+  "Der Stand des Abrufs ist nicht mehr verfügbar, etwa nach einem Neustart des Servers. Erneut „Amazon Datenabruf“ macht dort weiter, wo er war.";
+const NICHT_ABFRAGBAR = "Der Stand des Abrufs lässt sich nicht abfragen. Lade die Seite neu; erneut „Amazon Datenabruf“ macht dort weiter, wo er war.";
 
 /**
  * „Amazon Datenabruf“ (#1947): startet den Abruf im Hintergrund und zeigt seinen Fortschritt; der Stand wird alle 2 s
@@ -30,7 +37,7 @@ export function AmazonDatenabrufKnopf({
 }: {
   disabled: boolean;
   onMessages: (messages: ImportMessage[]) => void;
-  onStatus: (text: string | null) => void;
+  onStatus: (text: LaufText | null) => void;
 }) {
   const router = useRouter();
   const starten = useServerFn(amazonDatenabrufStartenFn);
@@ -40,9 +47,11 @@ export function AmazonDatenabrufKnopf({
   const laeuft = stand?.laeuft ?? false;
 
   useEffect(() => {
-    void abfragen().then((s) => {
-      if (s?.laeuft) setStand(s);
-    });
+    void abfragen()
+      .then((s) => {
+        if (s?.laeuft) setStand(s);
+      })
+      .catch(() => {});
   }, [abfragen]);
 
   useEffect(() => {
@@ -54,18 +63,39 @@ export function AmazonDatenabrufKnopf({
   useEffect(() => {
     if (!laeuft) return;
     let gestoppt = false;
-    const timer = setInterval(async () => {
-      const s = await abfragen().catch(() => null);
-      if (gestoppt || !s) return;
-      setStand(s);
-      if (!s.laeuft) {
-        onMessages(s.meldungen);
-        void router.invalidate();
+    let timer: ReturnType<typeof setTimeout>;
+    let fehlversuche = 0;
+    const beenden = (message: ImportMessage) => {
+      setStand(null);
+      onMessages([message]);
+    };
+    const abfrage = async () => {
+      let s: Awaited<ReturnType<typeof abfragen>> | undefined;
+      try {
+        s = await abfragen();
+        fehlversuche = 0;
+      } catch {
+        fehlversuche++;
       }
-    }, 2000);
+      if (gestoppt) return;
+      if (s === undefined) {
+        if (fehlversuche >= 3) return beenden({ tone: "danger", text: NICHT_ABFRAGBAR });
+      } else if (!s) {
+        return beenden({ tone: "info", text: NICHT_VERFUEGBAR });
+      } else {
+        setStand(s);
+        if (!s.laeuft) {
+          onMessages(s.meldungen);
+          void router.invalidate();
+          return;
+        }
+      }
+      timer = setTimeout(() => void abfrage(), 2000);
+    };
+    timer = setTimeout(() => void abfrage(), 2000);
     return () => {
       gestoppt = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [laeuft, abfragen, onMessages, router]);
 
@@ -84,7 +114,16 @@ export function AmazonDatenabrufKnopf({
         {laeuft ? "Ruft ab …" : "Amazon Datenabruf"}
       </button>
       {laeuft && (
-        <button type="button" className="btn" disabled={stand?.abbrechenAngefragt} onClick={() => void abbrechen().then((s) => s && setStand(s))}>
+        <button
+          type="button"
+          className="btn"
+          disabled={stand?.abbrechenAngefragt}
+          onClick={() =>
+            void abbrechen()
+              .then((s) => s && setStand(s))
+              .catch((e) => onMessages([{ tone: "danger", text: errorMessage(e) }]))
+          }
+        >
           Abbrechen
         </button>
       )}
