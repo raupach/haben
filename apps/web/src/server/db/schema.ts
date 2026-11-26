@@ -2558,6 +2558,60 @@ export const bankImports = pgTable("bank_imports", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Zugang zur Selling Partner API von Amazon (Einstellungen › Bank, #1947), genau eine Zeile: Client-ID, Client-Secret
+ * und Refresh-Token einer selbst autorisierten privaten App, zusammen verschlüsselt
+ */
+export const amazonSpConnections = pgTable(
+  "amazon_sp_connections",
+  {
+    /** Es gibt genau einen Zugang; der feste Wert hält es dabei */
+    id: text("id").primaryKey().default("amazon"),
+    /** Letzte Zeichen der Client-ID für die Anzeige */
+    keyHint: text("key_hint").notNull().default(""),
+    /** Client-ID, Client-Secret und Refresh-Token als JSON: AES-256-GCM */
+    ciphertext: bytea("ciphertext").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("amazon_sp_connections_id", sql`${t.id} = 'amazon'`)],
+);
+
+/** Ergebnis eines Settlement Reports im Protokoll; abgeschlossen sind nur uebernommen und fremdwaehrung */
+export const AMAZON_REPORT_ERGEBNISSE = ["uebernommen", "fremdwaehrung", "kein_konto", "mehrdeutig", "fehler"] as const;
+export type AmazonReportErgebnis = (typeof AMAZON_REPORT_ERGEBNISSE)[number];
+
+/**
+ * Protokoll der Amazon-Abrechnungen (#1947): eine Zeile je übernommener Abrechnung (Datei oder Abruf) und je Versuch
+ * des Abrufs ohne Übernahme. Nur anhängen. Eine Report-ID ist höchstens einmal abgeschlossen (Teilindex).
+ */
+export const amazonSettlementReports = pgTable(
+  "amazon_settlement_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Report-ID bei Amazon; leer beim Dateiimport */
+    reportId: text("report_id"),
+    settlementId: text("settlement_id"),
+    marketplace: text("marketplace"),
+    currency: text("currency"),
+    periodFrom: date("period_from", { mode: "string" }),
+    periodTo: date("period_to", { mode: "string" }),
+    ergebnis: text("ergebnis", { enum: AMAZON_REPORT_ERGEBNISSE }).notNull(),
+    /** Grund bei fehler, kein_konto und mehrdeutig */
+    meldung: text("meldung"),
+    bankAccountId: uuid("bank_account_id").references(() => bankAccounts.id, { onDelete: "restrict" }),
+    bankImportId: uuid("bank_import_id").references(() => bankImports.id, { onDelete: "restrict" }),
+    quelle: text("quelle", { enum: ["api", "datei"] }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("amazon_settlement_reports_abgeschlossen").on(t.reportId).where(sql`${t.ergebnis} in ('uebernommen', 'fremdwaehrung')`),
+    check("amazon_settlement_reports_ergebnis", sql`${t.ergebnis} in ('uebernommen', 'fremdwaehrung', 'kein_konto', 'mehrdeutig', 'fehler')`),
+    check("amazon_settlement_reports_quelle", sql`${t.quelle} in ('api', 'datei')`),
+    check("amazon_settlement_reports_api", sql`(${t.quelle} = 'api') = (${t.reportId} is not null)`),
+    check("amazon_settlement_reports_import", sql`(${t.ergebnis} = 'uebernommen') = (${t.bankImportId} is not null and ${t.bankAccountId} is not null)`),
+  ],
+);
+
 export type BankConnectionAccount = {
   /** Kennung des Kontos bei Enable Banking, gilt für die Dauer der Zustimmung; bei FinTS die IBAN */
   uid: string;
