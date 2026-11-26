@@ -1,7 +1,6 @@
 import { parseStatement } from "@haben/import";
 import type postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { withActor } from "../../db/actor.ts";
 import { setupTestDb, testDatabaseUrl } from "../../test-db.ts";
 import { amazonReport } from "./test-amazon-report.ts";
 
@@ -9,12 +8,14 @@ import { amazonReport } from "./test-amazon-report.ts";
 
 describe.skipIf(!testDatabaseUrl)("Protokoll der Amazon-Abrechnungen (Postgres)", () => {
   let bank: typeof import("./index.ts");
+  let withActor: typeof import("../../db/actor.ts").withActor;
   let sql: postgres.Sql;
   const actor = "test-user";
   let konto: string;
 
   beforeAll(async () => {
     sql = await setupTestDb();
+    ({ withActor } = await import("../../db/actor.ts"));
     bank = await import("./index.ts");
     konto = (await bank.createProviderAccount(actor, { name: "Amazon.de", provider: "amazon", marketplace: "Amazon.de" })).id;
   }, 60_000);
