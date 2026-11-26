@@ -55,6 +55,8 @@ export interface AbrufOptionen {
 
 /** Wartezeit bei Drosselung ohne Retry-After: getReportDocument erlaubt etwa einen Aufruf je Minute (0,0167/s) */
 const STANDARD_WARTEN_MS = 60_000;
+/** Retry-After 0 oder ein Datum in der Vergangenheit dürfen keine Wiederholung ohne Pause auslösen */
+const MIN_WARTEN_MS = 1_000;
 /** Längste einzelne Wartezeit, auch wenn Amazon mehr verlangt */
 const MAX_WARTEN_MS = 300_000;
 /** Längste Laufzeit eines Abrufs; danach bleiben die übrigen Reports für den nächsten */
@@ -138,6 +140,11 @@ export async function amazonDatenabruf(actor: string, optionen: AbrufOptionen = 
       ergebnis.nichtGeprueft = gesamt - i;
       break;
     }
+    if (jetzt() - start > maxDauer) {
+      ergebnis.abbruch = "zeitlimit";
+      ergebnis.nichtGeprueft = gesamt - i;
+      break;
+    }
     const report = offen[i]!;
     optionen.fortschritt?.({ phase: "laden", nummer: i + 1, gesamt, zuletzt });
     let bytes: Uint8Array;
@@ -145,7 +152,7 @@ export async function amazonDatenabruf(actor: string, optionen: AbrufOptionen = 
       bytes = await client.download(report.reportDocumentId);
     } catch (error) {
       if (error instanceof AmazonSpApiError && error.art === "drosselung") {
-        const ms = Math.min(error.wartenMs ?? STANDARD_WARTEN_MS, MAX_WARTEN_MS);
+        const ms = Math.min(Math.max(error.wartenMs ?? STANDARD_WARTEN_MS, MIN_WARTEN_MS), MAX_WARTEN_MS);
         if (jetzt() + ms - start > maxDauer) {
           ergebnis.abbruch = "zeitlimit";
           ergebnis.nichtGeprueft = gesamt - i;

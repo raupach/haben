@@ -22,6 +22,8 @@ export function amazonApi() {
     status: 200,
     /** Der S3-Download antwortet erst, wenn dieses Versprechen erfüllt ist */
     halten: null as Promise<void> | null,
+    /** Retry-After-Header der 429-Antworten, null: keiner */
+    retryAfter: null as string | null,
   };
   const fetchFn = (async (input: string | URL | Request) => {
     const url = new URL(String(input));
@@ -43,7 +45,7 @@ export function amazonApi() {
     }
     const doc = /^\/reports\/2021-06-30\/documents\/DOC-(.+)$/.exec(url.pathname);
     if (doc) {
-      if (stand.downloads.length + 1 >= stand.drossel) return Response.json({ errors: [{ code: "QuotaExceeded" }] }, { status: 429 });
+      if (stand.downloads.length + 1 >= stand.drossel) return Response.json({ errors: [{ code: "QuotaExceeded" }] }, { status: 429, headers: stand.retryAfter === null ? {} : { "retry-after": stand.retryAfter } });
       return Response.json({ url: `https://s3.example/${doc[1]}` });
     }
     if (url.origin === "https://s3.example") {

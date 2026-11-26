@@ -42,6 +42,7 @@ describe.skipIf(!testDatabaseUrl)("Amazon Datenabruf (Postgres)", () => {
   beforeEach(() => {
     api.stand.downloads = [];
     api.stand.drossel = Infinity;
+    api.stand.retryAfter = null;
   });
 
   it("legt jeden Report im Konto seines Marktplatzes ab; GBP, fehlendes Konto und kaputte Datei werden gemeldet", async () => {
@@ -179,6 +180,38 @@ describe.skipIf(!testDatabaseUrl)("Amazon Datenabruf (Postgres)", () => {
     expect(e.nichtGeprueft).toBe(2);
     expect(u.gewartet.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(30 * 60_000);
     api.stand.drossel = Infinity;
+  });
+
+  it("wartet mindestens eine Sekunde, auch bei Retry-After 0", async () => {
+    api.stand.reports = [report("R-W1", { settlementId: "S-W1", marketplace: "Amazon.de", order: "302-51" })];
+    api.stand.drossel = 1;
+    api.stand.retryAfter = "0";
+    const u = uhr();
+    await amazon.amazonDatenabruf(actor, {
+      jetzt: u.jetzt,
+      warten: async (ms) => {
+        await u.warten(ms);
+        api.stand.drossel = Infinity;
+      },
+    });
+    expect(u.gewartet[0]).toBe(1000);
+  });
+
+  it("hört auch ohne Drosselung nach 30 Minuten auf", async () => {
+    api.stand.reports = [
+      report("R-L1", { settlementId: "S-L1", marketplace: "Amazon.de", order: "302-61" }),
+      report("R-L2", { settlementId: "S-L2", marketplace: "Amazon.de", order: "302-62" }),
+    ];
+    let t = Date.parse("2026-11-26T20:00:00Z");
+    const e = await amazon.amazonDatenabruf(actor, {
+      jetzt: () => t,
+      fortschritt: (f) => {
+        if (f.phase === "laden" && f.nummer === 1) t += 31 * 60_000;
+      },
+    });
+    expect(e.abbruch).toBe("zeitlimit");
+    expect(e.uebernommen.map((x) => x.settlementId)).toEqual(["S-L1"]);
+    expect(e.nichtGeprueft).toBe(1);
   });
 
   it("bricht nach dem laufenden Report ab und beendet eine Wartezeit sofort", async () => {

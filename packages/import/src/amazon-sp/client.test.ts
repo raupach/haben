@@ -197,6 +197,16 @@ describe("AmazonSpClient", () => {
     expect(pausen).toHaveLength(3);
   });
 
+  it("meldet 429 ohne Retry-After als Drosselung ohne Wartezeit", async () => {
+    const { client } = api({
+      respond: (call) =>
+        call.url.pathname.startsWith("/reports/2021-06-30/documents/") ? Response.json({ errors: [{ code: "QuotaExceeded" }] }, { status: 429 }) : undefined,
+    });
+    const error = await fehlerVon(client({ sleep: async () => {} }).download("D1"));
+    expect(error.art).toBe("drosselung");
+    expect(error.wartenMs).toBeNull();
+  });
+
   it("wiederholt 429 nicht, wenn Amazon mehr als 10 s Wartezeit verlangt", async () => {
     const pausen: number[] = [];
     const { calls, client } = api({
