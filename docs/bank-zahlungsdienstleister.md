@@ -167,14 +167,15 @@ Statt jeden Settlement Report in Seller Central herunterzuladen, kann Haben die 
 
 - Amazon listet die Reports aller Marktplätze zusammen; welcher Marktplatz es ist, steht erst in der Datei (`marketplace-name`). Haben lädt deshalb jeden neuen Report, liest Marktplatz und Währung und übernimmt ihn in das Amazon-Konto dieses Marktplatzes, genauso wie beim Dateiimport.
 - Ein Report in GBP, PLN oder SEK wird nicht übernommen und nicht wieder geladen.
-- Gibt es für den Marktplatz kein Amazon-Konto (oder ist es ausgeschlossen), meldet Haben das; nach dem Anlegen holt der nächste Abruf die Abrechnung. Gibt es zwei Konten für denselben Marktplatz, übernimmt Haben nichts: Importiere diese Abrechnung als Datei in das richtige Konto. Einen solchen Report lädt Haben erst wieder, wenn es für den Marktplatz genau ein Konto gibt; eine von Hand importierte Abrechnung erledigt ihn. So verdrängen offene Reports nicht die neuen, wenn Amazon die Downloads drosselt.
+- Gibt es für den Marktplatz kein Amazon-Konto (oder ist es ausgeschlossen), stehen diese Marktplätze in einer Hinweiszeile mit der Zahl der Abrechnungen; nach dem Anlegen holt der nächste Abruf die Abrechnung. Gibt es zwei Konten für denselben Marktplatz, übernimmt Haben nichts: Importiere diese Abrechnung als Datei in das richtige Konto. Einen solchen Report lädt Haben erst wieder, wenn es für den Marktplatz genau ein Konto gibt; eine von Hand importierte Abrechnung erledigt ihn. So verdrängen offene Reports nicht die neuen, wenn Amazon die Downloads drosselt.
 - Liefert schon ein Dienst über die REST-API in ein Amazon-Konto, ruft Haben dafür nichts ab und meldet es: Ein Konto bekommt Umsätze nur aus einer Quelle ([#306](https://github.com/Speicherstadt/haben/issues/306)).
 - Amazon hält Reports 90 Tage ab ihrer Erzeugung bereit. Ältere Abrechnungen kommen über den Dateiimport. Erzeugt Amazon eine alte Abrechnung neu (etwa nach einem Download in Seller Central), kommt sie mit 0 neuen Umsätzen.
-- Marktplätze ohne Amazon-Konto stehen in einer Hinweiszeile mit der Zahl der Abrechnungen. Mehrere Konten für einen Marktplatz stehen in einer roten Zeile.
+- Mehrere Konten für einen Marktplatz stehen in einer roten Zeile.
 
 **Ablauf:** **Amazon Datenabruf** startet den Abruf im Hintergrund und kehrt sofort zurück. Eine Statuszeile unter den Schaltflächen zeigt die Phase: „Fragt Amazon nach den Abrechnungen …“ oder „Report n von m …“. Die Seite darf man verlassen und neu laden; die Zeile erscheint wieder. Es läuft höchstens ein Abruf je Serverprozess. Nach einem Neustart des Servers fehlt nur die Anzeige.
 
-- Amazon erlaubt etwa 15 Downloads am Stück, danach ungefähr einen je Minute. Drosselt Amazon, wartet Haben (Retry-After von Amazon, sonst 60 Sekunden, höchstens 5 Minuten je Wartezeit) und versucht es erneut. Die Zeile nennt den nächsten Versuch: „Amazon drosselt die Abrufe: … nächster Versuch um HH:MM:SS Uhr“.
+- Amazon erlaubt etwa 15 Downloads am Stück, danach ungefähr einen je Minute. Drosselt Amazon, wartet Haben (Retry-After von Amazon, sonst 60 Sekunden, höchstens 5 Minuten je Wartezeit) und lädt denselben Report erneut. Die Zeile nennt den nächsten Versuch: „Amazon drosselt die Abrufe: … nächster Versuch um HH:MM:SS Uhr“.
+- Der Stand des Abrufs gilt je Serverprozess. Laufen mehrere Instanzen, sieht die Seite ihn nur, wenn die Abfrage denselben Prozess erreicht; doppelt übernommen wird trotzdem nichts.
 - Nach 30 Minuten hört der Abruf auf und nennt die nicht geprüften Reports; der nächste Klick macht dort weiter.
 - **Abbrechen** beendet den Abruf nach dem laufenden Report; eine Wartezeit endet sofort. Übernommenes bleibt.
 - **Meldungen schließen** blendet die Meldungen aus.
