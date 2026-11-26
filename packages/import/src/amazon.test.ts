@@ -1,7 +1,15 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { AMAZON_MARKETPLACES } from "@haben/core";
-import { detectStatementFormat, PSP_FORMATS, parseStatement, StatementParseError, transactionHash, withDedupHashes } from "./index.ts";
+import {
+  detectStatementFormat,
+  PSP_FORMATS,
+  parseStatement,
+  readAmazonSettlementHead,
+  StatementParseError,
+  transactionHash,
+  withDedupHashes,
+} from "./index.ts";
 
 const fixture = (name: string) => new Uint8Array(readFileSync(new URL(`../test-fixtures/${name}`, import.meta.url)));
 const bytes = (text: string) => new TextEncoder().encode(text);
@@ -318,5 +326,43 @@ describe("Amazon-Settlement-Report", () => {
       file([{ type: "Order", order: "1-1", amountType: "ItemPrice", description: "Principal", amount: "10.00", date: "05.11.2026" }], { total: "10.00" }),
     );
     expect(brief(s)[0]).toEqual(["2026-11-05", 1000, "Verkauf · Bestellung 1-1"]);
+  });
+});
+
+describe("Kopf eines Amazon-Settlement-Reports (für den Abruf, #1947)", () => {
+  const order = (marketplace: string) => [
+    { type: "Order", order: "302-1", marketplace, amountType: "ItemPrice", description: "Principal", amount: "10,00", date: "03.11.2026" },
+  ];
+
+  it("nennt Settlement-ID, Währung, Marktplätze und Zeitraum", () => {
+    expect(readAmazonSettlementHead(file(order("Amazon.de"), { total: "10,00" }))).toEqual({
+      settlementId: "10000000001",
+      currency: "EUR",
+      marketplaces: ["Amazon.de"],
+      periodFrom: "2026-11-01",
+      periodTo: "2026-11-15",
+    });
+  });
+
+  it("liest auch eine Abrechnung in GBP, ohne abzulehnen", () => {
+    expect(readAmazonSettlementHead(file(order("Amazon.co.uk"), { currency: "GBP" }))).toMatchObject({ currency: "GBP", marketplaces: ["Amazon.co.uk"] });
+  });
+
+  it("nennt alle Marktplätze, wenn eine Abrechnung mehrere hat, und keinen bei nur Sonderzeilen", () => {
+    const mehrere = file([...order("Amazon.fr"), ...order("Amazon.de")]);
+    expect(readAmazonSettlementHead(mehrere)?.marketplaces).toEqual(["Amazon.de", "Amazon.fr"]);
+    const sonder = file([
+      { type: "other-transaction", amountType: "other-transaction", description: "Payable to Amazon", amount: "-1,00", date: "03.11.2026" },
+    ]);
+    expect(readAmazonSettlementHead(sonder)?.marketplaces).toEqual([]);
+  });
+
+  it("gibt null für eine andere Datei", () => {
+    expect(readAmazonSettlementHead(bytes("Buchungsdatum;Betrag\n01.11.2026;1,00\n"))).toBeNull();
+    expect(readAmazonSettlementHead(bytes(""))).toBeNull();
+  });
+
+  it("gibt die Settlement-ID auch im Ergebnis des Parsers zurück", () => {
+    expect(parseStatement(file(order("Amazon.de"), { total: "10,00" }), "a.txt").settlementId).toBe("10000000001");
   });
 });

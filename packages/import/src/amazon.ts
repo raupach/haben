@@ -1,9 +1,10 @@
 import type { Cents } from "@haben/core";
 import { finish, indexed, requireAmount, type Tx } from "./common.ts";
-import { isBlankRow } from "./csv.ts";
+import { isBlankRow, parseCsv } from "./csv.ts";
+import { decodeText } from "./decode.ts";
 import { StatementParseError } from "./errors.ts";
 import { pspDate } from "./psp.ts";
-import { Columns } from "./table.ts";
+import { Columns, findHeaderRow } from "./table.ts";
 import { parseDotAmount, parseGermanAmount } from "./text.ts";
 import type { ParsedStatement } from "./types.ts";
 
@@ -89,9 +90,53 @@ function amazonColumns(c: Columns) {
 }
 type AmazonColumns = ReturnType<typeof amazonColumns>;
 
+/** Zeilen unter der Kopfzeile mit ihrer Nummer in der Datei, ohne leere */
+function dataRows(rows: string[][], headerRow: number): Position[] {
+  return rows
+    .slice(headerRow + 1)
+    .map((row, i) => ({ row, line: headerRow + i + 2 }))
+    .filter(({ row }) => !isBlankRow(row));
+}
+
+/** Die Zusammenfassung: total-amount gesetzt, aber keine Zeilenart */
+const headLine = (get: AmazonColumns, data: Position[]) => data.find(({ row }) => get.total(row) !== "" && get.type(row) === "");
+
+/** Kopf einer Abrechnung, wie ihn der Abruf vor der Übernahme braucht (#1947) */
+export interface AmazonSettlementHead {
+  settlementId: string;
+  currency: string;
+  /** Alle Werte von marketplace-name, sortiert; leer, wenn die Datei keinen nennt */
+  marketplaces: string[];
+  periodFrom: string | undefined;
+  periodTo: string | undefined;
+}
+
+/**
+ * Liest nur den Kopf eines Settlement-Reports, ohne Währung oder Summen zu prüfen: Der Abruf muss Marktplatz und
+ * Währung kennen, bevor er ein Konto wählt, und eine Abrechnung in GBP abschließen, statt sie bei jedem Klick neu zu
+ * laden. null, wenn die Datei kein Settlement-Report ist.
+ */
+export function readAmazonSettlementHead(bytes: Uint8Array): AmazonSettlementHead | null {
+  const rows = parseCsv(decodeText(bytes).replace(/^\uFEFF/, ""), "\t");
+  const headerRow = findHeaderRow(rows, isAmazonSettlementHeader);
+  if (headerRow < 0) return null;
+  const get = amazonColumns(new Columns(rows[headerRow]!));
+  const data = dataRows(rows, headerRow);
+  const head = headLine(get, data);
+  if (!head) return null;
+  const marketplaces = [...new Set(data.map(({ row }) => get.marketplaceName(row)).filter((m) => m !== ""))].sort();
+  return {
+    settlementId: get.settlement(head.row),
+    currency: get.currency(head.row).toUpperCase() || "EUR",
+    marketplaces,
+    periodFrom: get.start(head.row) ? amazonDay(get.start(head.row), "Kopfline") : undefined,
+    periodTo: get.end(head.row) ? amazonDay(get.end(head.row), "Kopfline") : undefined,
+  };
+}
+
 /** Kopfline lesen: settlement-id und total-amount, aber keine Zeilenart; nur Euro */
 function amazonHead(get: AmazonColumns, data: Position[]): AmazonHead {
-  const head = data.find(({ row }) => get.total(row) !== "" && get.type(row) === "");
+  const head = headLine(get, data);
   if (!head) throw new StatementParseError("Der Amazon-Settlement-Report nennt keinen Auszahlungsbetrag (Spalte total-amount fehlt).");
   const headCurrency = get.currency(head.row).toUpperCase() || "EUR";
   if (headCurrency !== "EUR") {
@@ -203,10 +248,7 @@ function amazonWarnings(positionSum: Cents, payoutTotal: Cents | null, marketpla
 /** Settlement-Report von Amazon (Tab-getrennt), nur Abrechnungen in Euro */
 export function parseAmazonSettlement(rows: string[][], headerRow: number): ParsedStatement {
   const get = amazonColumns(new Columns(rows[headerRow]!));
-  const data = rows
-    .slice(headerRow + 1)
-    .map((row, i) => ({ row, line: headerRow + i + 2 }))
-    .filter(({ row }) => !isBlankRow(row));
+  const data = dataRows(rows, headerRow);
   const head = amazonHead(get, data);
   const { list, orders, positionSum, marketplaces } = amazonPositions(get, data, head);
   amazonOrderTransactions(list, orders, head.settlementId);
@@ -228,6 +270,7 @@ export function parseAmazonSettlement(rows: string[][], headerRow: number): Pars
     format: "amazon-settlement",
     currency: "EUR",
     marketplace: marketplaces.size === 1 ? [...marketplaces][0] : undefined,
+    settlementId: head.settlementId,
     periodFrom: head.periodFrom,
     periodTo: head.periodTo,
     transactions: indexed(list),

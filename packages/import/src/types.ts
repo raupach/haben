@@ -105,6 +105,8 @@ export interface ParsedStatement {
   periodTo?: string;
   /** Marktplatz der Datei, falls sie einen nennt (Amazon: `marketplace-name`, z. B. „Amazon.de“); dient dem Abgleich mit dem Konto */
   marketplace?: string;
+  /** Nur Amazon: settlement-id der Abrechnung, für das Protokoll der Abrechnungen (#1947) */
+  settlementId?: string;
   /** Saldo vor dem ersten bzw. nach dem letzten Umsatz, falls die Datei ihn nennt */
   openingBalance?: Cents;
   closingBalance?: Cents;
