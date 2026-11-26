@@ -45,7 +45,11 @@ export function amazonApi() {
     }
     const doc = /^\/reports\/2021-06-30\/documents\/DOC-(.+)$/.exec(url.pathname);
     if (doc) {
-      if (stand.downloads.length + 1 >= stand.drossel) return Response.json({ errors: [{ code: "QuotaExceeded" }] }, { status: 429, headers: stand.retryAfter === null ? {} : { "retry-after": stand.retryAfter } });
+      if (stand.downloads.length + 1 >= stand.drossel)
+        return Response.json(
+          { errors: [{ code: "QuotaExceeded" }] },
+          { status: 429, headers: stand.retryAfter === null ? {} : { "retry-after": stand.retryAfter } },
+        );
       return Response.json({ url: `https://s3.example/${doc[1]}` });
     }
     if (url.origin === "https://s3.example") {
