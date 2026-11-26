@@ -63,6 +63,8 @@ export const DURCHLAEUFE = {
   "rechnungen-angebote": 49,
   // Warteschlange der KI-Auslesung (#1735): nur dieser Server liest Belege mit dem nachgebauten Dienst auf KI_PORT aus
   "ki-warteschlange": 50,
+  // Amazon Datenabruf (#1947): nur dieser Server fragt die nachgebaute SP-API auf AMAZON_PORT
+  "amazon-abruf": 51,
 } as const;
 export type Durchlauf = keyof typeof DURCHLAEUFE;
 
@@ -102,7 +104,7 @@ export const TEILE = {
   rechnungen: ["rechnungen", "rechnungen-kontakte", "rechnungen-artikel", "rechnungen-kasse", "rechnungen-angebote"],
   ablauf: ["ablauf", "abzug", "mit-daten", "fremdrechnung-kleinunternehmer", "fints-abruf", "etsy-abruf"],
   "ablauf-2": ["ablauf", "abzug", "mit-daten-2", "zahlung-gebuehr", "bank-dubletten", "bank-bestaetigen"],
-  "ablauf-3": ["ablauf", "abzug", "mit-daten-3", "paypal-abruf", "stripe-abruf", "ki-warteschlange"],
+  "ablauf-3": ["ablauf", "abzug", "mit-daten-3", "paypal-abruf", "stripe-abruf", "ki-warteschlange", "amazon-abruf"],
   gmbh: ["gmbh", "rueckfragen", "belegimport", "bb-import", "beleg-storno", "dauerfrist-euer", "verrechnung", "firmen", "passwort", "fastbill-import"],
   importe: [
     "wiso-import",
@@ -151,6 +153,9 @@ export const PAYPAL_PORT = PORT + 39;
 
 /** Nachgebauter OpenAI-kompatibler KI-Dienst in ki-warteschlange.spec.ts (EXTRACTION_BASE_URL) */
 export const KI_PORT = PORT + 51;
+
+/** Nachgebaute SP-API von Amazon mit LWA in amazon-abruf.spec.ts (AMAZON_SP_API_URL, AMAZON_LWA_TOKEN_URL) */
+export const AMAZON_PORT = PORT + 52;
 
 /** Platzhalter für FINTS_PRODUKT_ID im Durchlauf „fints-abruf“; eine echte Registrierungsnummer steht nie im Repository */
 export const FINTS_PRODUKT_E2E = "HABENE2ETESTPRODUKT";

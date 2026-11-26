@@ -16,6 +16,8 @@ import { Icon } from "../../components/Icon.tsx";
 import type { ActionMenuItem } from "../../components/MoreActionsMenu.tsx";
 import type { Kontokarte } from "../../lib/kontenkarten.ts";
 import { KontoVerbindenKopf, NameUndZweckDialog, SearchBox, useDateiImport } from "./-bank-konto.tsx";
+import { AmazonDatenabrufKnopf, type LaufText } from "./-bank-amazon-abruf.tsx";
+import { amazonSpEingerichtetFn } from "../../server/functions/amazon.ts";
 import { menueGruppe } from "../../lib/menue-gruppe.ts";
 import bankStyles from "../../styles/bank.css?url";
 import { type KontoAbruf, KontoHinweis, useKontoAbruf } from "./-bank-abruf.tsx";
@@ -45,17 +47,23 @@ export const Route = createFileRoute("/_app/bank")({
     sort: search.sort,
     dir: search.dir,
   }),
-  loader: ({ deps }) =>
-    getBankOverview({
-      data: {
-        konto: deps.konto,
-        filter: deps.filter ?? "offen",
-        suche: deps.suche ?? "",
-        umsatz: deps.umsatz,
-        sort: deps.sort ?? "datum",
-        dir: deps.dir ?? "ab",
-      },
-    }),
+  loader: async ({ deps }) => {
+    const [overview, amazonAbruf] = await Promise.all([
+      getBankOverview({
+        data: {
+          konto: deps.konto,
+          filter: deps.filter ?? "offen",
+          suche: deps.suche ?? "",
+          umsatz: deps.umsatz,
+          sort: deps.sort ?? "datum",
+          dir: deps.dir ?? "ab",
+        },
+      }),
+      // „Amazon Datenabruf“ nur mit eingerichtetem Zugang (#1947)
+      amazonSpEingerichtetFn(),
+    ]);
+    return { ...overview, amazonAbruf };
+  },
   head: () => ({ meta: [{ title: "Bank · Haben" }], links: [{ rel: "stylesheet", href: bankStyles }] }),
   component: BankPage,
 });
@@ -128,6 +136,8 @@ function BankPage() {
     von: "/bank",
   });
   const datei = useDateiImport(data);
+  const [amazonStatus, setAmazonStatus] = useState<LaufText | null>(null);
+  const hatAmazonKonto = data.accounts.some((a) => a.provider === "amazon");
   const [nameFuer, setNameFuer] = useState<string | null>(null);
   const nameKonto = data.accounts.find((a) => a.id === nameFuer);
   const zuVerbindungen = () => void navigate({ to: "/bank/verbindungen" });
@@ -161,9 +171,29 @@ function BankPage() {
           onBankWeg={(weg) => (weg === "enablebanking" ? setConnecting(true) : fintsZustand.neuVerbinden())}
           onCreated={(id) => void navigate({ search: (prev) => ({ ...prev, konto: id, umsatz: undefined }) })}
           onMessage={datei.setMessages}
-          davor={datei.knopf}
+          davor={
+            <>
+              {datei.knopf}
+              {data.amazonAbruf && hatAmazonKonto && (
+                <AmazonDatenabrufKnopf disabled={datei.busy} onMessages={datei.setMessages} onStatus={setAmazonStatus} />
+              )}
+            </>
+          }
         />
       </div>
+      {/* Statuszeile des Abrufs unter den Knöpfen: die Phase für die Live-Region, „zuletzt“ daneben */}
+      {amazonStatus && (
+        <>
+          <p className="small muted" role="status" style={{ margin: 0, textAlign: "right" }}>
+            {amazonStatus.phase}
+          </p>
+          {amazonStatus.zuletzt && (
+            <p className="small muted" style={{ margin: 0, textAlign: "right" }}>
+              zuletzt: {amazonStatus.zuletzt}
+            </p>
+          )}
+        </>
+      )}
       {datei.zielFeld}
 
       {data.accounts.length === 0 ? (

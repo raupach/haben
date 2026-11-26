@@ -1,6 +1,7 @@
 import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod/mini";
+import { AmazonSpApiCard } from "../../components/AmazonSpApiCard.tsx";
 import { ExcludedAccounts, KontoAusschliessenDialog } from "../../components/BankKontoAusschliessen.tsx";
 import { EtsyPaymentsCard } from "../../components/EtsyPaymentsCard.tsx";
 import { EinklappAbschnitt } from "../../components/firma/EinklappAbschnitt.tsx";
@@ -12,6 +13,7 @@ import type { Notice } from "../../lib/use-action.ts";
 import { menueGruppe } from "../../lib/menue-gruppe.ts";
 import { getExternalBankSources } from "../../server/functions/bank-quellen.ts";
 import { getBankVerbindungen } from "../../server/functions/bank-verbindungen.ts";
+import { getAmazonSpSettings } from "../../server/functions/amazon.ts";
 import { getEtsySettings } from "../../server/functions/etsy.ts";
 import { getStoreConnections } from "../../server/functions/stores.ts";
 import bankStyles from "../../styles/bank.css?url";
@@ -22,8 +24,8 @@ import { VerbindungsGruppe, type Zeile, zeilenDerGruppe, zeilenMenue } from "./-
 
 /*
  * Seite Verbindungen (#1951): alle Konten der Banken und Zahlungsdienstleister mit Weg, Stand und Status. Hier liegen
- * Abruf, Zugänge, Trennen, Name und Zweck und der Ausschluss; Store-Berichte und Etsy Payments kamen aus den Einstellungen
- * hierher. Die Bankseite zeigt dieselben Konten als Karten über den Umsätzen.
+ * Abruf, Zugänge, Trennen, Name und Zweck und der Ausschluss; Store-Berichte, Etsy Payments und der Amazon-Zugang kamen
+ * aus den Einstellungen hierher. Die Bankseite zeigt dieselben Konten als Karten über den Umsätzen.
  */
 
 export const Route = createFileRoute("/_app/bank_/verbindungen")({
@@ -33,8 +35,14 @@ export const Route = createFileRoute("/_app/bank_/verbindungen")({
     meldung: z.optional(z.string().check(z.maxLength(500))),
   }),
   loader: async () => {
-    const [seite, quellen, stores, etsy] = await Promise.all([getBankVerbindungen(), getExternalBankSources(), getStoreConnections(), getEtsySettings()]);
-    return { ...seite, ...quellen, stores, etsy };
+    const [seite, quellen, stores, etsy, amazon] = await Promise.all([
+      getBankVerbindungen(),
+      getExternalBankSources(),
+      getStoreConnections(),
+      getEtsySettings(),
+      getAmazonSpSettings(),
+    ]);
+    return { ...seite, ...quellen, stores, etsy, amazon };
   },
   head: () => ({ meta: [{ title: "Verbindungen · Haben" }], links: [{ rel: "stylesheet", href: bankStyles }] }),
   component: VerbindungenPage,
@@ -135,7 +143,7 @@ function VerbindungenPage() {
         zeilen={zeilenDerGruppe(data, "zahlungsdienstleister")}
         {...gruppe}
       />
-      <StoresUndMarktplaetze stores={data.stores} etsy={data.etsy} />
+      <StoresUndMarktplaetze stores={data.stores} etsy={data.etsy} amazon={data.amazon} />
       <ExcludedAccounts accounts={data.excludedAccounts} />
 
       {dialog?.art === "name" && konto && (
@@ -148,24 +156,26 @@ function VerbindungenPage() {
 }
 
 /**
- * Store-Berichte und Etsy Payments (#1951, aus den Einstellungen hierher): je ein eingeklappter Abschnitt mit dem Stand
- * in der Überschrift, weil ihre Formulare lang sind und die meisten Firmen keins von beiden nutzen. Offen steht ein
- * Abschnitt, solange sein Abruf fehlschlägt oder ein Anker ihn anspringt.
+ * Store-Berichte, Etsy Payments und Amazon (#1951, #1947, aus den Einstellungen hierher): je ein eingeklappter Abschnitt
+ * mit dem Stand in der Überschrift, weil ihre Formulare lang sind und die meisten Firmen keins davon nutzen. Offen steht
+ * ein Abschnitt, solange sein Abruf fehlschlägt oder ein Anker ihn anspringt.
  */
 function StoresUndMarktplaetze({
   stores,
   etsy,
+  amazon,
 }: {
   stores: Awaited<ReturnType<typeof getStoreConnections>>;
   etsy: Awaited<ReturnType<typeof getEtsySettings>>;
+  amazon: Awaited<ReturnType<typeof getAmazonSpSettings>>;
 }) {
   const store = (art: "googleplay" | "appstore") => stores.connections.find((c) => c.store === art);
   const storeFehler = stores.connections.some((c) => c.lastError);
-  const [offen, setOffen] = useState({ stores: storeFehler, etsy: Boolean(etsy.lastError) });
-  // Die Rückleitung von Etsy und Links mit Anker (`#etsy`, `#stores`) klappen ihren Abschnitt auf; erst im Browser, der Server kennt den Anker nicht
+  const [offen, setOffen] = useState({ stores: storeFehler, etsy: Boolean(etsy.lastError), amazon: false });
+  // Die Rückleitung von Etsy und Links mit Anker (`#etsy`, `#stores`, `#amazon`) klappen ihren Abschnitt auf; erst im Browser, der Server kennt den Anker nicht
   const anker = useLocation({ select: (l) => l.hash });
   useEffect(() => {
-    if (anker === "etsy" || anker === "stores") setOffen((o) => ({ ...o, [anker]: true }));
+    if (anker === "etsy" || anker === "stores" || anker === "amazon") setOffen((o) => ({ ...o, [anker]: true }));
   }, [anker]);
   const storesKurz = [
     `Google Play ${store("googleplay") ? "verbunden" : "nicht verbunden"}`,
@@ -191,6 +201,15 @@ function StoresUndMarktplaetze({
         onOffen={(neu) => setOffen((o) => ({ ...o, etsy: neu }))}
       >
         <EtsyPaymentsCard data={etsy} />
+      </EinklappAbschnitt>
+      <EinklappAbschnitt
+        id="amazon"
+        titel="Amazon-Abrechnungen"
+        kurz={amazon.configured ? `verbunden (Client-ID …${amazon.keyHint})` : "nicht verbunden"}
+        offen={offen.amazon}
+        onOffen={(neu) => setOffen((o) => ({ ...o, amazon: neu }))}
+      >
+        <AmazonSpApiCard data={amazon} />
       </EinklappAbschnitt>
     </section>
   );

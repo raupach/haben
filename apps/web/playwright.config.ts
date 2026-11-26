@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import {
   ABZUG_AUS,
+  AMAZON_PORT,
   appDatabaseUrlFuer,
   DURCHLAEUFE,
   databaseUrlFuer,
@@ -104,6 +105,10 @@ function webServer(durchlauf?: Durchlauf) {
       // Stripe (#1280) nur im Durchlauf „stripe-abruf“ gegen die nachgebaute API; sonst die echte, die ohne gespeicherten
       // Schlüssel nie gefragt wird
       ...(durchlauf === "stripe-abruf" ? { STRIPE_API_URL: `http://127.0.0.1:${STRIPE_PORT}` } : {}),
+      // Amazon (#1947) nur im Durchlauf „amazon-abruf“ gegen die nachgebaute SP-API; sonst die echten Adressen, die ohne gespeicherten Zugang nie gefragt werden
+      ...(durchlauf === "amazon-abruf"
+        ? { AMAZON_SP_API_URL: `http://127.0.0.1:${AMAZON_PORT}`, AMAZON_LWA_TOKEN_URL: `http://127.0.0.1:${AMAZON_PORT}/auth/o2/token` }
+        : {}),
       // Firma wechseln (#504) nur im Durchlauf „firmen“: diese Instanz und zwei andere
       HABEN_FIRMEN: durchlauf === "firmen" ? habenFirmen(serverURL) : "",
     },
