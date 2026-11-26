@@ -170,7 +170,14 @@ Statt jeden Settlement Report in Seller Central herunterzuladen, kann Haben die 
 - Gibt es für den Marktplatz kein Amazon-Konto (oder ist es ausgeschlossen), meldet Haben das; nach dem Anlegen holt der nächste Abruf die Abrechnung. Gibt es zwei Konten für denselben Marktplatz, übernimmt Haben nichts: Importiere diese Abrechnung als Datei in das richtige Konto. Einen solchen Report lädt Haben erst wieder, wenn es für den Marktplatz genau ein Konto gibt; eine von Hand importierte Abrechnung erledigt ihn. So verdrängen offene Reports nicht die neuen, wenn Amazon die Downloads drosselt.
 - Liefert schon ein Dienst über die REST-API in ein Amazon-Konto, ruft Haben dafür nichts ab und meldet es: Ein Konto bekommt Umsätze nur aus einer Quelle ([#306](https://github.com/Speicherstadt/haben/issues/306)).
 - Amazon hält Reports 90 Tage ab ihrer Erzeugung bereit. Ältere Abrechnungen kommen über den Dateiimport. Erzeugt Amazon eine alte Abrechnung neu (etwa nach einem Download in Seller Central), kommt sie mit 0 neuen Umsätzen.
-- Amazon erlaubt etwa 15 Downloads am Stück, danach ungefähr einen je Minute. Beim ersten Abruf, oder wenn lange nicht abgerufen wurde, nennt Haben die noch nicht geprüften Reports; ein späterer Klick macht weiter. Übernommenes bleibt.
+- Marktplätze ohne Amazon-Konto stehen in einer Hinweiszeile mit der Zahl der Abrechnungen. Mehrere Konten für einen Marktplatz stehen in einer roten Zeile.
+
+**Ablauf:** **Amazon Datenabruf** startet den Abruf im Hintergrund und kehrt sofort zurück. Eine Statuszeile unter den Schaltflächen zeigt die Phase: „Fragt Amazon nach den Abrechnungen …“ oder „Report n von m …“. Die Seite darf man verlassen und neu laden; die Zeile erscheint wieder. Es läuft höchstens ein Abruf je Serverprozess. Nach einem Neustart des Servers fehlt nur die Anzeige.
+
+- Amazon erlaubt etwa 15 Downloads am Stück, danach ungefähr einen je Minute. Drosselt Amazon, wartet Haben (Retry-After von Amazon, sonst 60 Sekunden, höchstens 5 Minuten je Wartezeit) und versucht es erneut. Die Zeile nennt den nächsten Versuch: „Amazon drosselt die Abrufe: … nächster Versuch um HH:MM:SS Uhr“.
+- Nach 30 Minuten hört der Abruf auf und nennt die nicht geprüften Reports; der nächste Klick macht dort weiter.
+- **Abbrechen** beendet den Abruf nach dem laufenden Report; eine Wartezeit endet sofort. Übernommenes bleibt.
+- **Meldungen schließen** blendet die Meldungen aus.
 
 **Datei und Abruf zusammen:** Abruf und Dateiimport lesen denselben Report gleich (am echten Konto geprüft: dieselbe Datei wie der Download aus Seller Central) und erkennen schon vorhandene Umsätze. Der Dateiimport läuft immer, auch für eine Abrechnung, die schon abgerufen wurde; so lässt sich ein Abruf von Hand korrigieren. Jede übernommene Abrechnung und jeder Versuch des Abrufs stehen in einem Protokoll, das sich nicht ändern lässt.
 
