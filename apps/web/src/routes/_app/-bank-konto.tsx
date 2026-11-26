@@ -305,6 +305,7 @@ export function useDateiImport(data: Pick<Data, "accounts" | "allAccounts" | "ac
           setMessages(importMessages(result, file));
           void router.invalidate();
         }}
+        onClose={() => setMessages([])}
       />
     ),
   };

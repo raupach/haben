@@ -38,6 +38,7 @@ export function ImportMeldungen({
   onImported,
   alleKonten = [],
   onKontoGewaehlt,
+  onClose,
 }: {
   messages: ImportMessage[];
   accounts: ZuordnungKonto[];
@@ -46,6 +47,8 @@ export function ImportMeldungen({
   /** Alle Konten, auch die der Zahlungsdienstleister, für die Nachfrage nach dem Konto */
   alleKonten?: { id: string; name: string }[];
   onKontoGewaehlt?: (file: File, accountId: string) => void;
+  /** Schließt die Meldungen von Hand; ohne Angabe bleiben sie stehen */
+  onClose?: () => void;
 }) {
   const [zuordnen, setZuordnen] = useState<File | null>(null);
   return (
@@ -68,6 +71,13 @@ export function ImportMeldungen({
               </li>
             ))}
           </ul>
+          {onClose && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+              <button type="button" className="btn btn-sm" onClick={onClose}>
+                Meldungen schließen
+              </button>
+            </div>
+          )}
         </div>
       )}
       {zuordnen && (

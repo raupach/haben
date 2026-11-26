@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "../middleware.ts";
 import {
-  abrufMeldungen,
-  amazonDatenabruf,
+  amazonLaufAbbrechen,
+  amazonLaufStand,
+  amazonLaufStarten,
   amazonSpEingerichtet,
   amazonSpSettingsSchema,
   amazonSpSummary,
@@ -36,6 +37,17 @@ export const removeAmazonSpConnectionFn = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const amazonDatenabrufFn = createServerFn({ method: "POST" })
+export const amazonDatenabrufStartenFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => abrufMeldungen(await amazonDatenabruf(context.user.id)));
+  .handler(async ({ context }) => amazonLaufStarten(context.user.id));
+
+export const amazonDatenabrufStandFn = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => amazonLaufStand());
+
+export const amazonDatenabrufAbbrechenFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    amazonLaufAbbrechen();
+    return amazonLaufStand();
+  });

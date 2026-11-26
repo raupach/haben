@@ -139,8 +139,16 @@ test("Ohne Amazon-Konto kein Knopf; mit Konto holt der Abruf die Abrechnung, ges
   try {
     await knopf().click();
     await expect(page.getByRole("button", { name: "Ruft ab …" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Abbrechen" })).toBeVisible();
+    await expect(page.getByText(/Report 1 von 1/)).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Ruft ab …" })).toBeDisabled();
+    await expect(page.getByText(/Report 1 von 1/)).toBeVisible();
     freigeben?.();
-    await expect(page.getByText("Amazon.de: 1 Abrechnung, 3 neue Umsätze")).toBeVisible();
+    const meldung = page.getByText("Amazon.de: 1 Abrechnung, 3 neue Umsätze");
+    await expect(meldung).toBeVisible();
+    await page.getByRole("button", { name: "Meldungen schließen" }).click();
+    await expect(meldung).toHaveCount(0);
   } finally {
     freigeben?.();
   }
