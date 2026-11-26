@@ -32,12 +32,15 @@ export class AmazonSpApiError extends Error {
   /** HTTP-Status; 0 bei Netzwerkfehlern */
   readonly status: number;
   readonly path: string;
-  constructor(message: string, art: AmazonSpFehlerArt, status: number, path: string, options?: { cause?: unknown }) {
+  /** Wartezeit aus Retry-After bei Drosselung in Millisekunden, sonst null */
+  readonly wartenMs: number | null;
+  constructor(message: string, art: AmazonSpFehlerArt, status: number, path: string, options?: { cause?: unknown; wartenMs?: number | null }) {
     super(message, options);
     this.name = "AmazonSpApiError";
     this.art = art;
     this.status = status;
     this.path = path;
+    this.wartenMs = options?.wartenMs ?? null;
   }
 }
 
@@ -241,7 +244,8 @@ export class AmazonSpClient {
               : response.status === 429
                 ? "drosselung"
                 : "sonstig";
-      throw new AmazonSpApiError(errorText(art, response.status, body, this.#secrets()), art, response.status, path);
+      const wartenMs = art === "drosselung" ? parseRetryAfter(response.headers.get("retry-after"), this.#now()) : null;
+      throw new AmazonSpApiError(errorText(art, response.status, body, this.#secrets()), art, response.status, path, { wartenMs });
     }
   }
 

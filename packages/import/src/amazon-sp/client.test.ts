@@ -207,6 +207,7 @@ describe("AmazonSpClient", () => {
     });
     const error = await fehlerVon(client({ sleep: async (ms) => void pausen.push(ms) }).download("D1"));
     expect(error.art).toBe("drosselung");
+    expect(error.wartenMs).toBe(120_000);
     expect(pausen).toEqual([]);
     expect(calls.filter((x) => x.url.pathname === "/reports/2021-06-30/documents/D1")).toHaveLength(1);
   });

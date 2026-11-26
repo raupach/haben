@@ -129,18 +129,76 @@ describe.skipIf(!testDatabaseUrl)("Amazon Datenabruf (Postgres)", () => {
     expect(await umsaetze(be)).toBe(0);
   });
 
-  it("bei Drosselung bleibt Übernommenes, der nächste Abruf macht weiter", async () => {
+  /** Uhr und Warten für den Abruf: Warten rückt die Uhr vor, statt Zeit zu verbrauchen */
+  const uhr = () => {
+    let t = Date.parse("2026-11-26T20:00:00Z");
+    const gewartet: number[] = [];
+    return {
+      gewartet,
+      jetzt: () => t,
+      warten: async (ms: number) => {
+        gewartet.push(ms);
+        t += ms;
+      },
+    };
+  };
+
+  it("wartet bei Drosselung und macht dann mit demselben Report weiter", async () => {
     api.stand.reports = [
       report("R-D1", { settlementId: "S-D1", marketplace: "Amazon.de", order: "302-21" }),
       report("R-D2", { settlementId: "S-D2", marketplace: "Amazon.de", order: "302-22" }),
       report("R-D3", { settlementId: "S-D3", marketplace: "Amazon.de", order: "302-23" }),
     ];
     api.stand.drossel = 2;
-    const erster = await amazon.amazonDatenabruf(actor);
-    expect(erster.uebernommen.map((u) => u.settlementId)).toEqual(["S-D1"]);
-    expect(erster.nichtGeprueft).toBe(2);
+    const u = uhr();
+    const fortschritt: string[] = [];
+    const e = await amazon.amazonDatenabruf(actor, {
+      jetzt: u.jetzt,
+      warten: async (ms) => {
+        await u.warten(ms);
+        api.stand.drossel = Infinity;
+      },
+      fortschritt: (f) => fortschritt.push(f.phase),
+    });
+    expect(e.uebernommen.map((x) => x.settlementId)).toEqual(["S-D1", "S-D2", "S-D3"]);
+    expect(e.nichtGeprueft).toBe(0);
+    expect(e.abbruch).toBeNull();
+    expect(u.gewartet).toEqual([60_000]);
+    expect(fortschritt).toContain("warten");
+  });
+
+  it("hört bei dauerhafter Drosselung nach 30 Minuten auf", async () => {
+    api.stand.reports = [
+      report("R-Z1", { settlementId: "S-Z1", marketplace: "Amazon.de", order: "302-41" }),
+      report("R-Z2", { settlementId: "S-Z2", marketplace: "Amazon.de", order: "302-42" }),
+    ];
+    api.stand.drossel = 1;
+    const u = uhr();
+    const e = await amazon.amazonDatenabruf(actor, { jetzt: u.jetzt, warten: u.warten });
+    expect(e.abbruch).toBe("zeitlimit");
+    expect(e.nichtGeprueft).toBe(2);
+    expect(u.gewartet.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(30 * 60_000);
     api.stand.drossel = Infinity;
-    expect((await amazon.amazonDatenabruf(actor)).uebernommen.map((u) => u.settlementId)).toEqual(["S-D2", "S-D3"]);
+  });
+
+  it("bricht nach dem laufenden Report ab und beendet eine Wartezeit sofort", async () => {
+    api.stand.reports = [
+      report("R-A1", { settlementId: "S-A1", marketplace: "Amazon.de", order: "302-51" }),
+      report("R-A2", { settlementId: "S-A2", marketplace: "Amazon.de", order: "302-52" }),
+    ];
+    api.stand.drossel = 2;
+    const abbruch = new AbortController();
+    const u = uhr();
+    const e = await amazon.amazonDatenabruf(actor, {
+      jetzt: u.jetzt,
+      signal: abbruch.signal,
+      // Abbruch während der Wartezeit: das Warten endet, ohne die Uhr vorzurücken
+      warten: async () => abbruch.abort(),
+    });
+    expect(e.uebernommen.map((x) => x.settlementId)).toEqual(["S-A1"]);
+    expect(e.abbruch).toBe("abgebrochen");
+    expect(e.nichtGeprueft).toBe(1);
+    api.stand.drossel = Infinity;
   });
 
   it("offene Reports ohne Konto verdrängen unter der Drosselung keine neue Abrechnung", async () => {

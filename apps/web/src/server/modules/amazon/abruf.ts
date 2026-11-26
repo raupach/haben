@@ -21,8 +21,9 @@ import { amazonFehlertext, amazonSpClientFor, AmazonSpError, loadAmazonSpConnect
  * Amazon Datenabruf (#1947): holt die Settlement Reports, die Amazon noch bereithält und die nicht abgeschlossen sind,
  * zuerst nie versuchte, ältester zuerst (Auswahl in auswahl.ts; Reports ohne Konto oder mit zwei Konten bleiben liegen,
  * bis sich daran etwas ändert), und übernimmt jeden über storeStatement in das eine Amazon-Konto seines Marktplatzes. Den Marktplatz
- * nennt nur die Datei. Jeder Report ist eine eigene Transaktion: Bricht der Abruf ab (Drosselung nach etwa 15
- * Downloads), bleibt Übernommenes, und der nächste Abruf macht weiter. Eine feste Advisory-Sperre reiht parallele
+ * nennt nur die Datei. Jeder Report ist eine eigene Transaktion: Bricht der Abruf ab (Abbruch, Zeitlimit, Fehler),
+ * bleibt Übernommenes, und der nächste Abruf macht weiter. Bei Drosselung (nach etwa 15 Downloads) wartet der Abruf und
+ * lädt denselben Report erneut, höchstens 30 Minuten lang. Eine feste Advisory-Sperre reiht parallele
  * Abrufe hintereinander; danach prüft jeder erneut, ob der Report schon abgeschlossen ist.
  */
 
@@ -34,8 +35,43 @@ export interface AmazonAbrufErgebnis {
   /** „Report <id>: <Grund>“ */
   fehler: string[];
   schonAbgerufen: number;
-  /** Wegen Drosselung nicht mehr geladen */
+  /** Wegen Abbruch, Zeitlimit oder Zugangsfehler nicht mehr geladen */
   nichtGeprueft: number;
+  abbruch: "abgebrochen" | "zeitlimit" | null;
+}
+
+export type AbrufFortschritt =
+  | { phase: "liste" }
+  | { phase: "laden"; nummer: number; gesamt: number; zuletzt: string | null }
+  | { phase: "warten"; bis: number; nummer: number; gesamt: number };
+
+export interface AbrufOptionen {
+  fortschritt?: (f: AbrufFortschritt) => void;
+  signal?: AbortSignal;
+  jetzt?: () => number;
+  warten?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  maxDauerMs?: number;
+}
+
+/** Wartezeit bei Drosselung ohne Retry-After: getReportDocument erlaubt etwa einen Aufruf je Minute (0,0167/s) */
+const STANDARD_WARTEN_MS = 60_000;
+/** Längste einzelne Wartezeit, auch wenn Amazon mehr verlangt */
+const MAX_WARTEN_MS = 300_000;
+/** Längste Laufzeit eines Abrufs; danach bleiben die übrigen Reports für den nächsten */
+export const MAX_DAUER_MS = 30 * 60_000;
+
+/** Wartet, endet aber sofort, wenn der Abruf abgebrochen wird */
+function warteBisOderAbbruch(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    const timer = setTimeout(done, ms);
+    function done() {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    }
+    signal?.addEventListener("abort", done, { once: true });
+  });
 }
 
 type Konto = { id: string; name: string };
@@ -57,17 +93,27 @@ async function amazonKonten(): Promise<Map<string, Konto[]>> {
 
 const versuch = (actor: string, v: AmazonVersuch) => withActor(actor, (tx) => protokolliereAmazonVersuch(tx, v));
 
-export async function amazonDatenabruf(actor: string): Promise<AmazonAbrufErgebnis> {
+export async function amazonDatenabruf(actor: string, optionen: AbrufOptionen = {}): Promise<AmazonAbrufErgebnis> {
   const connection = await loadAmazonSpConnection();
   if (!connection) throw new AmazonSpError("Der Amazon-Zugang ist nicht eingerichtet (Einstellungen › Bank).");
   const client = amazonSpClientFor(connection.credentials);
   let reports: AmazonSettlementReportInfo[];
+  optionen.fortschritt?.({ phase: "liste" });
   try {
     reports = await client.settlementReports();
   } catch (error) {
     throw new AmazonSpError(amazonFehlertext(error));
   }
-  const ergebnis: AmazonAbrufErgebnis = { uebernommen: [], fremdwaehrung: [], ohneKonto: [], mehrdeutig: [], fehler: [], schonAbgerufen: 0, nichtGeprueft: 0 };
+  const ergebnis: AmazonAbrufErgebnis = {
+    uebernommen: [],
+    fremdwaehrung: [],
+    ohneKonto: [],
+    mehrdeutig: [],
+    fehler: [],
+    schonAbgerufen: 0,
+    nichtGeprueft: 0,
+    abbruch: null,
+  };
   const konten = await amazonKonten();
   const auswahl = waehleReports(
     reports,
@@ -80,23 +126,50 @@ export async function amazonDatenabruf(actor: string): Promise<AmazonAbrufErgebn
   ergebnis.schonAbgerufen = auswahl.schonAbgerufen;
   ergebnis.ohneKonto.push(...auswahl.ohneKonto);
   ergebnis.mehrdeutig.push(...auswahl.mehrdeutig);
-  for (const [i, report] of offen.entries()) {
+  const jetzt = optionen.jetzt ?? Date.now;
+  const warten = optionen.warten ?? warteBisOderAbbruch;
+  const maxDauer = optionen.maxDauerMs ?? MAX_DAUER_MS;
+  const start = jetzt();
+  const gesamt = offen.length;
+  let zuletzt: string | null = null;
+  for (let i = 0; i < gesamt; ) {
+    if (optionen.signal?.aborted) {
+      ergebnis.abbruch = "abgebrochen";
+      ergebnis.nichtGeprueft = gesamt - i;
+      break;
+    }
+    const report = offen[i]!;
+    optionen.fortschritt?.({ phase: "laden", nummer: i + 1, gesamt, zuletzt });
     let bytes: Uint8Array;
     try {
       bytes = await client.download(report.reportDocumentId);
     } catch (error) {
+      if (error instanceof AmazonSpApiError && error.art === "drosselung") {
+        const ms = Math.min(error.wartenMs ?? STANDARD_WARTEN_MS, MAX_WARTEN_MS);
+        if (jetzt() + ms - start > maxDauer) {
+          ergebnis.abbruch = "zeitlimit";
+          ergebnis.nichtGeprueft = gesamt - i;
+          break;
+        }
+        optionen.fortschritt?.({ phase: "warten", bis: jetzt() + ms, nummer: i + 1, gesamt });
+        await warten(ms, optionen.signal);
+        continue;
+      }
       if (error instanceof AmazonSpApiError && error.art !== "sonstig") {
-        // Drosselung, Zugang oder Rolle: die übrigen Reports scheitern genauso
-        ergebnis.nichtGeprueft = offen.length - i;
-        if (error.art !== "drosselung") ergebnis.fehler.push(error.message);
+        // Zugang oder Rolle: die übrigen Reports scheitern genauso
+        ergebnis.nichtGeprueft = gesamt - i;
+        ergebnis.fehler.push(error.message);
         break;
       }
       const meldung = amazonFehlertext(error);
       await versuch(actor, { reportId: report.reportId, ergebnis: "fehler", meldung });
       ergebnis.fehler.push(`Report ${report.reportId}: ${meldung}`);
+      zuletzt = `Report ${report.reportId}: Fehler`;
+      i++;
       continue;
     }
-    await verarbeite(actor, report, bytes, konten, ergebnis);
+    zuletzt = await verarbeite(actor, report, bytes, konten, ergebnis);
+    i++;
   }
   return ergebnis;
 }
@@ -107,10 +180,11 @@ async function verarbeite(
   bytes: Uint8Array,
   konten: Map<string, Konto[]>,
   ergebnis: AmazonAbrufErgebnis,
-): Promise<void> {
+): Promise<string> {
   const fehler = async (meldung: string, kopf: Partial<AmazonVersuch> = {}) => {
     await versuch(actor, { ...kopf, reportId: report.reportId, ergebnis: "fehler", meldung });
     ergebnis.fehler.push(`Report ${report.reportId}: ${meldung}`);
+    return `Report ${report.reportId}: Fehler`;
   };
   let head: ReturnType<typeof readAmazonSettlementHead>;
   try {
@@ -124,7 +198,7 @@ async function verarbeite(
     const marketplace = head.marketplaces.join(", ") || "unbekannter Marktplatz";
     await versuch(actor, { ...kopf, reportId: report.reportId, ergebnis: "fremdwaehrung", marketplace });
     ergebnis.fremdwaehrung.push({ marketplace, currency: head.currency });
-    return;
+    return `${marketplace}: ${head.currency}, nicht übernommen`;
   }
   if (head.marketplaces.length !== 1) {
     return fehler(
@@ -146,7 +220,7 @@ async function verarbeite(
       meldung: art === "kein_konto" ? "Kein Amazon-Konto für den Marktplatz" : "Mehrere Amazon-Konten für den Marktplatz",
     });
     (art === "kein_konto" ? ergebnis.ohneKonto : ergebnis.mehrdeutig).push(marketplace);
-    return;
+    return art === "kein_konto" ? `${marketplace}: kein Konto` : `${marketplace}: mehrere Konten`;
   }
   const konto = passend[0]!;
   const filename = `amazon-settlement-${head.settlementId}.txt`;
@@ -161,7 +235,7 @@ async function verarbeite(
     });
     if (!result) {
       ergebnis.schonAbgerufen++;
-      return;
+      return `Report ${report.reportId}: schon abgerufen`;
     }
     ergebnis.uebernommen.push({
       marketplace,
@@ -170,8 +244,9 @@ async function verarbeite(
       added: result.added,
       warnings: result.warnings,
     });
+    return `${result.accountName}: Abrechnung ${head.settlementId} übernommen (${result.added} neue Umsätze)`;
   } catch (error) {
     if (!(error instanceof BankError || error instanceof StatementParseError)) throw error;
-    await fehler(error.message, { ...kopf, marketplace });
+    return fehler(error.message, { ...kopf, marketplace });
   }
 }

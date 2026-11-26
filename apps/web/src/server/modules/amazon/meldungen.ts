@@ -30,18 +30,30 @@ export function abrufMeldungen(e: AmazonAbrufErgebnis): AbrufMeldung[] {
       text: `${anzahl(e.fremdwaehrung.length, "Abrechnung", "Abrechnungen")} in Fremdwährung nicht übernommen (${liste}); Haben übernimmt nur Euro.`,
     });
   }
-  for (const m of new Set(e.ohneKonto)) {
-    meldungen.push({ tone: "danger", text: `Kein Amazon-Konto für ${m}: unter „Konto hinzufügen“ anlegen, dann holt der nächste Abruf die Abrechnung.` });
+  const ohne = [...new Set(e.ohneKonto)];
+  if (ohne.length > 0) {
+    meldungen.push({
+      tone: "info",
+      text: `Kein Amazon-Konto für ${ohne.join(", ")}: ${anzahl(e.ohneKonto.length, "Abrechnung", "Abrechnungen")} nicht übernommen. Lege unter „Konto hinzufügen“ ein Konto an, wenn du sie übernehmen willst; dann holt der nächste Abruf sie.`,
+    });
   }
-  for (const m of new Set(e.mehrdeutig)) {
-    meldungen.push({ tone: "danger", text: `Mehrere Amazon-Konten für ${m}: die Abrechnung bitte von Hand in das richtige Konto importieren.` });
+  const mehr = [...new Set(e.mehrdeutig)];
+  if (mehr.length > 0) {
+    meldungen.push({
+      tone: "danger",
+      text: `Mehrere Amazon-Konten für ${mehr.join(", ")}: ${anzahl(e.mehrdeutig.length, "Abrechnung", "Abrechnungen")} nicht übernommen; bitte von Hand in das richtige Konto importieren.`,
+    });
   }
   for (const f of e.fehler) meldungen.push({ tone: "danger", text: f });
   if (e.nichtGeprueft > 0) {
-    meldungen.push({
-      tone: "info",
-      text: `${anzahl(e.nichtGeprueft, "Report", "Reports")} noch nicht geprüft: Amazon erlaubt etwa einen Download je Minute. Später erneut „Amazon Datenabruf“.`,
-    });
+    const n = anzahl(e.nichtGeprueft, "Report", "Reports");
+    const text =
+      e.abbruch === "abgebrochen"
+        ? `Abruf abgebrochen: ${n} noch nicht geprüft. Erneut „Amazon Datenabruf“ macht dort weiter.`
+        : e.abbruch === "zeitlimit"
+          ? `Abruf nach 30 Minuten beendet: ${n} noch nicht geprüft. Erneut „Amazon Datenabruf“ macht dort weiter.`
+          : `${n} noch nicht geprüft.`;
+    meldungen.push({ tone: "info", text });
   }
   return meldungen;
 }

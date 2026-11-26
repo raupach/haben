@@ -20,6 +20,8 @@ export function amazonApi() {
     drossel: Infinity,
     /** Status für Anmeldung und API, etwa 400 (invalid_grant) oder 403 */
     status: 200,
+    /** Der S3-Download antwortet erst, wenn dieses Versprechen erfüllt ist */
+    halten: null as Promise<void> | null,
   };
   const fetchFn = (async (input: string | URL | Request) => {
     const url = new URL(String(input));
@@ -45,6 +47,7 @@ export function amazonApi() {
       return Response.json({ url: `https://s3.example/${doc[1]}` });
     }
     if (url.origin === "https://s3.example") {
+      if (stand.halten) await stand.halten;
       const report = stand.reports.find((r) => r.reportId === url.pathname.slice(1));
       if (!report) return new Response("", { status: 404 });
       stand.downloads.push(report.reportId);
