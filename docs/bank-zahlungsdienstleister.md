@@ -78,6 +78,8 @@ PayPal und Stripe ruft Haben über deren Schnittstelle ab. Verbunden wird auf de
 
 Danach steht die Verbindung als Zeile unter **Geld › Verbindungen**: der Pfeil (**Jetzt abrufen**) holt die Umsätze sofort, auch **⋯** auf der Karte und **Jetzt abrufen** über der Liste des Kontos; **⋯ › Bearbeiten …** ändert Zugang und Einstellungen, **⋯ › Verbindung entfernen** löscht den Zugang. Übernommene Umsätze bleiben im Konto stehen. Schlägt ein Abruf fehl, steht **Zugang ändern** an der Zeile und im Hinweis unter den Karten.
 
+Die Abrechnungen von Amazon holt Haben getrennt davon ([Amazon-Abrechnungen über die SP-API](#amazon-abrechnungen-über-die-sp-api)).
+
 Mehrere Verbindungen beim selben Anbieter gehen, etwa zwei Stripe-Konten; jede schreibt in ihr eigenes Konto der Art Zahlungsdienstleister. Steht unter **Konto in Haben** „Automatisch“, nimmt Haben das älteste Konto des Anbieters, das keine andere Verbindung nutzt; gibt es keins, legt es beim Speichern eines mit dem Namen der Verbindung an. Dasselbe Konto beim Anbieter lässt sich nur einmal verbinden. Nach dem ersten Abruf schreibt es immer in dasselbe Konto in Haben, auch wenn du die Verbindung entfernst und neu anlegst: „Automatisch“ nimmt dann dieses Konto, ein anderes lehnt Haben ab (ein Konto, eine Quelle). Haben sieht neun Verrechnungskonten für Zahlungsdienstleister vor, über alle Anbieter zusammen; braucht eine Verbindung ein neues Konto und sind alle neun vergeben, lehnt Haben sie ab.
 
 ## PayPal-Umsätze über die API
@@ -166,6 +168,7 @@ Statt jeden Settlement Report in Seller Central herunterzuladen, kann Haben die 
 - Amazon listet die Reports aller Marktplätze zusammen; welcher Marktplatz es ist, steht erst in der Datei (`marketplace-name`). Haben lädt deshalb jeden neuen Report, liest Marktplatz und Währung und übernimmt ihn in das Amazon-Konto dieses Marktplatzes, genauso wie beim Dateiimport.
 - Ein Report in GBP, PLN oder SEK wird nicht übernommen und nicht wieder geladen.
 - Gibt es für den Marktplatz kein Amazon-Konto (oder ist es ausgeschlossen), meldet Haben das; nach dem Anlegen holt der nächste Abruf die Abrechnung. Gibt es zwei Konten für denselben Marktplatz, übernimmt Haben nichts: Importiere diese Abrechnung als Datei in das richtige Konto.
+- Liefert schon ein Dienst über die REST-API in ein Amazon-Konto, ruft Haben dafür nichts ab und meldet es: Ein Konto bekommt Umsätze nur aus einer Quelle ([#306](https://github.com/Speicherstadt/haben/issues/306)).
 - Amazon hält Reports 90 Tage ab ihrer Erzeugung bereit. Ältere Abrechnungen kommen über den Dateiimport. Erzeugt Amazon eine alte Abrechnung neu (etwa nach einem Download in Seller Central), kommt sie mit 0 neuen Umsätzen.
 - Amazon erlaubt etwa 15 Downloads am Stück, danach ungefähr einen je Minute. Beim ersten Abruf, oder wenn lange nicht abgerufen wurde, nennt Haben die noch nicht geprüften Reports; ein späterer Klick macht weiter. Übernommenes bleibt.
 
