@@ -11,3 +11,5 @@ export {
   saveAmazonSpConnection,
   setAmazonSpClientFactory,
 } from "./connections.ts";
+export { amazonDatenabruf, type AmazonAbrufErgebnis } from "./abruf.ts";
+export { abrufMeldungen, type AbrufMeldung } from "./meldungen.ts";

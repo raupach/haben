@@ -31,7 +31,7 @@ const HEADER = [
   "promotion-id",
 ].join("\t");
 
-export function amazonReport(o: { settlementId?: string; marketplace?: string; currency?: string; order?: string } = {}): Uint8Array {
+export function amazonReport(o: { settlementId?: string; marketplace?: string; currency?: string; order?: string } = {}): Uint8Array<ArrayBuffer> {
   const id = o.settlementId ?? "10000000001";
   const marketplace = o.marketplace ?? "Amazon.de";
   const order = o.order ?? "302-0000000-0000001";
