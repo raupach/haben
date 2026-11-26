@@ -1,5 +1,6 @@
 // Kontoauszüge importieren und speichern: Saldenfolge, Dubletten, Importprotokoll
 
+import { protokolliereAmazonUebernahme } from "./amazon-protokoll.ts";
 import { BankError } from "./bank-error.ts";
 import {
   checkBalanceContinuity,
@@ -56,7 +57,7 @@ export async function importStatement(actor: string, file: { bytes: Uint8Array; 
 export async function storeStatement(
   tx: Tx,
   statement: ParsedStatement,
-  source: { filename: string; sha256: string; csvMapping?: BankCsvMapping },
+  source: { filename: string; sha256: string; csvMapping?: BankCsvMapping; amazonReportId?: string },
   accountId: string | null,
 ): Promise<ImportResult> {
   const { account, continuity } = await prepareStatement(tx, statement, source.filename, accountId);
@@ -74,6 +75,10 @@ export async function storeStatement(
     : [];
   const { importId, transactionIds } = await insertStatement(tx, account.id, statement, source, fresh, transactions.length - fresh.length);
   await recordImportObservations(tx, importId, observed);
+  // Protokoll der Amazon-Abrechnungen (#1947): jede übernommene Abrechnung, aus Datei oder Abruf
+  if (statement.format === "amazon-settlement") {
+    await protokolliereAmazonUebernahme(tx, statement, { accountId: account.id, importId, reportId: source.amazonReportId ?? null });
+  }
   // Ohne Quellenbindung ist auch eine innerhalb des Abrufs eindeutige Referenz kein Beleg über mehrere Abrufe.
   await recordDuplicateCandidates(tx, account.id, scanDays, new Set(transactionIds.values()), new Set());
   return statementResult(tx, account, statement, continuity, fresh.length, transactions);
