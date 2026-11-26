@@ -185,7 +185,7 @@ describe("AmazonSpClient", () => {
     expect(calls.filter((x) => x.url.href === TOKEN_URL)).toHaveLength(2);
   });
 
-  it("wiederholt 429 und meldet danach Drosselung", async () => {
+  it("meldet 429 sofort als Drosselung, ohne zu warten", async () => {
     const pausen: number[] = [];
     const { calls, client } = api({
       respond: (call) =>
@@ -193,8 +193,19 @@ describe("AmazonSpClient", () => {
     });
     const error = await fehlerVon(client({ sleep: async (ms) => void pausen.push(ms) }).download("D1"));
     expect(error.art).toBe("drosselung");
-    expect(calls.filter((x) => x.url.pathname === "/reports/2021-06-30/documents/D1")).toHaveLength(4);
-    expect(pausen).toHaveLength(3);
+    expect(calls.filter((x) => x.url.pathname === "/reports/2021-06-30/documents/D1")).toHaveLength(1);
+    expect(pausen).toEqual([]);
+  });
+
+  it("wiederholt 503 weiter", async () => {
+    const pausen: number[] = [];
+    let n = 0;
+    const { client } = api({
+      dateien: { D1: { bytes: text("ok") } },
+      respond: (call) => (call.url.pathname === "/reports/2021-06-30/documents/D1" && n++ < 2 ? new Response("", { status: 503 }) : undefined),
+    });
+    await client({ sleep: async (ms) => void pausen.push(ms) }).download("D1");
+    expect(pausen).toHaveLength(2);
   });
 
   it("meldet 429 ohne Retry-After als Drosselung ohne Wartezeit", async () => {
@@ -207,7 +218,7 @@ describe("AmazonSpClient", () => {
     expect(error.wartenMs).toBeNull();
   });
 
-  it("wiederholt 429 nicht, wenn Amazon mehr als 10 s Wartezeit verlangt", async () => {
+  it("übernimmt Retry-After der 429 als Wartezeit", async () => {
     const pausen: number[] = [];
     const { calls, client } = api({
       respond: (call) =>

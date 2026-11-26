@@ -24,7 +24,7 @@ export const AMAZON_SETTLEMENT_REPORT_TYPE = "GET_V2_SETTLEMENT_REPORT_DATA_FLAT
 /** Wie beim Dateiimport (functions/bank.ts) */
 export const AMAZON_MAX_REPORT_BYTES = 20 * 1024 * 1024;
 
-/** zugang: Anmeldung abgelehnt; rolle: Rolle fehlt; drosselung: 429 nach Wiederholung; sonstig: alles andere */
+/** zugang: Anmeldung abgelehnt; rolle: Rolle fehlt; drosselung: 429; sonstig: alles andere */
 export type AmazonSpFehlerArt = "zugang" | "rolle" | "drosselung" | "sonstig";
 
 export class AmazonSpApiError extends Error {
@@ -79,10 +79,8 @@ const tokenSchema = z.looseObject({ access_token: z.string().min(1), expires_in:
 const REPORTS_PATH = "/reports/2021-06-30/reports";
 /** Schutz gegen eine Endlosschleife; 100 Reports je Seite */
 const MAX_PAGES = 100;
-/** Wiederholungen bei 429/502/503/504 und Netzwerkfehlern */
+/** Wiederholungen bei 502/503/504 und Netzwerkfehlern */
 const MAX_RETRIES = 3;
-/** Längere Wartezeit bei 429 wird nicht abgewartet: Der Knopf soll nicht minutenlang hängen */
-const MAX_DROSSEL_WARTEN_MS = 10_000;
 
 export class AmazonSpClient {
   readonly #clientId: string;
@@ -227,12 +225,11 @@ export class AmazonSpClient {
       }
       if (response.ok || (allow403 && response.status === 403)) return response;
       const body = await response.text().catch(() => "");
-      if (RETRY_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
-        const wartezeit = parseRetryAfter(response.headers.get("retry-after"), this.#now()) ?? backoff(attempt);
-        if (response.status !== 429 || wartezeit <= MAX_DROSSEL_WARTEN_MS) {
-          await this.#sleep(wartezeit);
-          continue;
-        }
+      // 429 wiederholt der Client nicht: Die Wartezeit steuert der Aufrufer (der Abruf wartet und zeigt es an); kurze
+      // Wiederholungen helfen bei etwa einem Aufruf je Minute nicht.
+      if (response.status !== 429 && RETRY_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+        await this.#sleep(parseRetryAfter(response.headers.get("retry-after"), this.#now()) ?? backoff(attempt));
+        continue;
       }
       const art: AmazonSpFehlerArt =
         path === "lwa" && (response.status === 400 || response.status === 401)
