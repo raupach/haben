@@ -197,6 +197,20 @@ describe("AmazonSpClient", () => {
     expect(pausen).toHaveLength(3);
   });
 
+  it("wiederholt 429 nicht, wenn Amazon mehr als 10 s Wartezeit verlangt", async () => {
+    const pausen: number[] = [];
+    const { calls, client } = api({
+      respond: (call) =>
+        call.url.pathname.startsWith("/reports/2021-06-30/documents/")
+          ? Response.json({ errors: [{ code: "QuotaExceeded" }] }, { status: 429, headers: { "retry-after": "120" } })
+          : undefined,
+    });
+    const error = await fehlerVon(client({ sleep: async (ms) => void pausen.push(ms) }).download("D1"));
+    expect(error.art).toBe("drosselung");
+    expect(pausen).toEqual([]);
+    expect(calls.filter((x) => x.url.pathname === "/reports/2021-06-30/documents/D1")).toHaveLength(1);
+  });
+
   it("nimmt mit Basis-URLs (nachgebaute API im E2E-Test) nur diese", async () => {
     const { calls, client } = api();
     await client({ baseUrl: "http://127.0.0.1:3151/" }).pruefen();

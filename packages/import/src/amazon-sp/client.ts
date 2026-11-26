@@ -78,6 +78,8 @@ const REPORTS_PATH = "/reports/2021-06-30/reports";
 const MAX_PAGES = 100;
 /** Wiederholungen bei 429/502/503/504 und Netzwerkfehlern */
 const MAX_RETRIES = 3;
+/** Längere Wartezeit bei 429 wird nicht abgewartet: Der Knopf soll nicht minutenlang hängen */
+const MAX_DROSSEL_WARTEN_MS = 10_000;
 
 export class AmazonSpClient {
   readonly #clientId: string;
@@ -223,8 +225,11 @@ export class AmazonSpClient {
       if (response.ok || (allow403 && response.status === 403)) return response;
       const body = await response.text().catch(() => "");
       if (RETRY_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
-        await this.#sleep(parseRetryAfter(response.headers.get("retry-after"), this.#now()) ?? backoff(attempt));
-        continue;
+        const wartezeit = parseRetryAfter(response.headers.get("retry-after"), this.#now()) ?? backoff(attempt);
+        if (response.status !== 429 || wartezeit <= MAX_DROSSEL_WARTEN_MS) {
+          await this.#sleep(wartezeit);
+          continue;
+        }
       }
       const art: AmazonSpFehlerArt =
         path === "lwa" && (response.status === 400 || response.status === 401)
