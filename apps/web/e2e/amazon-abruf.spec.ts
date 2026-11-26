@@ -88,7 +88,7 @@ test.afterEach(() => {
 });
 
 const karte = () => page.getByRole("region", { name: "Amazon SP-API" });
-const knopf = () => page.getByRole("button", { name: /Amazon Datenabruf|Ruft ab …/ });
+const knopf = () => page.getByRole("button", { name: /^Amazon Datenabruf( läuft …)?$/ });
 
 async function mitDatenbank<T>(arbeit: (sql: postgres.Sql) => Promise<T>): Promise<T> {
   const sql = postgres(databaseUrlFuer("amazon-abruf"), { max: 1, onnotice: () => {} });
@@ -138,11 +138,11 @@ test("Ohne Amazon-Konto kein Knopf; mit Konto holt der Abruf die Abrechnung, ges
   tor = new Promise<void>((resolve) => (freigeben = resolve));
   try {
     await knopf().click();
-    await expect(page.getByRole("button", { name: "Ruft ab …" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Amazon Datenabruf läuft …" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Abbrechen" })).toBeVisible();
     await expect(page.getByText(/Report 1 von 1/)).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: "Ruft ab …" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Amazon Datenabruf läuft …" })).toBeDisabled();
     await expect(page.getByText(/Report 1 von 1/)).toBeVisible();
     freigeben?.();
     const meldung = page.getByText("Amazon.de: 1 Abrechnung, 3 neue Umsätze");

@@ -117,7 +117,7 @@ export function AmazonDatenabrufKnopf({
   return (
     <>
       <button type="button" className="btn" disabled={disabled || laeuft} onClick={() => void onStart()}>
-        {laeuft ? "Ruft ab …" : "Amazon Datenabruf"}
+        {laeuft ? "Amazon Datenabruf läuft …" : "Amazon Datenabruf"}
       </button>
       {laeuft && (
         <button
