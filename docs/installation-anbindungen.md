@@ -200,7 +200,7 @@ Der Abruf der PayPal-Umsätze braucht auf dem Server nichts Eigenes: keine Umgeb
 
 ## Amazon-Abruf
 
-Der Abruf der Amazon-Abrechnungen braucht auf dem Server nichts Eigenes: keine Umgebungsvariable und kein Secret. Client-ID, Client-Secret und Refresh-Token trägst du in Haben ein (Einstellungen › Bank › Amazon SP-API, siehe [Amazon-Abrechnungen über die SP-API](bank-zahlungsdienstleister.md#amazon-abrechnungen-über-die-sp-api)); sie liegen mit dem Schlüssel der Installation verschlüsselt in der Datenbank. Wechselst du den Schlüssel, musst du sie neu eintragen. Der Server muss `api.amazon.com`, `sellingpartnerapi-eu.amazon.com` und die Report-Dateien unter `*.s3.eu-west-1.amazonaws.com` bzw. `*.s3-eu-west-1.amazonaws.com` auf Port 443 erreichen.
+Der Abruf der Amazon-Abrechnungen braucht auf dem Server nichts Eigenes: keine Umgebungsvariable und kein Secret. Client-ID, Client-Secret und Refresh-Token trägst du in Haben ein (Geld › Verbindungen › Amazon-Abrechnungen, siehe [Amazon-Abrechnungen über die SP-API](bank-zahlungsdienstleister.md#amazon-abrechnungen-über-die-sp-api)); sie liegen mit dem Schlüssel der Installation verschlüsselt in der Datenbank. Wechselst du den Schlüssel, musst du sie neu eintragen. Der Server muss `api.amazon.com`, `sellingpartnerapi-eu.amazon.com` und die Report-Dateien unter `*.s3.eu-west-1.amazonaws.com` bzw. `*.s3-eu-west-1.amazonaws.com` auf Port 443 erreichen.
 
 ## Stripe-Abruf
 
