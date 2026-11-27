@@ -72,16 +72,13 @@ export const DATEI_WEGE: Partial<Record<PaymentProvider, DateiWeg>> = {
   },
 };
 
-/**
- * Anbieter mit eigenem Abschnitt unter „Geld › Verbindungen“, mit dessen Anker; Etsy legt sein Konto dort selbst an,
- * Amazon den Zugang zur SP-API je Kontobestand (#1947)
- */
-const BEREICH: Partial<Record<PaymentProvider, "etsy" | "amazon">> = { etsy: "etsy", amazon: "amazon" };
+/** Anbieter mit eigenem Abschnitt unter „Geld › Verbindungen“, mit dessen Anker; Etsy legt sein Konto dort selbst an */
+const BEREICH: Partial<Record<PaymentProvider, "etsy">> = { etsy: "etsy" };
 
 /** Wie der Anbieter im Weg „bereich“ heißt; kurz, weil der Satz schon „unter Verbindungen“ sagt */
-const BEREICH_NAME: Record<"etsy" | "amazon", string> = { etsy: "Etsy", amazon: "Amazon" };
+const BEREICH_NAME: Record<"etsy", string> = { etsy: "Etsy" };
 
-export function bereichAnker(provider: string): "etsy" | "amazon" | null {
+export function bereichAnker(provider: string): "etsy" | null {
   return BEREICH[provider as PaymentProvider] ?? null;
 }
 
@@ -90,14 +87,17 @@ export function istStore(provider: string): boolean {
   return provider === "googleplay" || provider === "appstore";
 }
 
-/**
- * Was der Weg „bereich“ tut: Amazon holt seine Abrechnungen über die SP-API und schreibt in das Konto des Marktplatzes,
- * Etsy legt sein Konto beim Abruf des Zahlungsverlaufs selbst an
- */
-export function bereichHinweis(provider: string, name: string): string {
-  if (bereichAnker(provider) === "amazon")
-    return "Haben holt die Abrechnungen über die Selling Partner API. Den Zugang richtest du unter Geld › Verbindungen in Amazon-Abrechnungen ein; jede Abrechnung landet im Amazon-Konto ihres Marktplatzes. Die Konten legst du über den Weg Mit Exportdatei an.";
+/** Was der Weg „bereich“ tut: Etsy legt sein Konto beim Abruf des Zahlungsverlaufs selbst an */
+export function bereichHinweis(name: string): string {
   return `Haben ruft ${name} über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.`;
+}
+
+/**
+ * Hinweis am Feld Marktplatz: ein Konto gehört zu einem Marktplatz, und der Abruf über die SP-API (#1947) steht unter
+ * Verbindungen, weil er nicht je Konto eingerichtet wird
+ */
+export function kontoHinweis(): string {
+  return "Ein Amazon-Konto gehört zu genau einem Marktplatz; Haben lehnt Abrechnungen eines anderen ab. Den Abruf über die SP-API richtest du unter Geld › Verbindungen in Amazon-Abrechnungen ein.";
 }
 
 export function dateiWeg(provider: string): DateiWeg | null {

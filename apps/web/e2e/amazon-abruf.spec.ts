@@ -111,17 +111,12 @@ test("Einrichtung", async () => {
   await einrichten(page);
 });
 
-test("Die geführte Einrichtung bietet Amazon beide Wege und führt zum Abschnitt unter Verbindungen", async () => {
+test("Die geführte Einrichtung beginnt bei Amazon gleich mit dem Konto und nennt den Zugang zur SP-API", async () => {
   await gehe(page, "/bank/verbinden/amazon");
-  const weg = page.getByRole("form", { name: "Weg" });
-  await expect(weg.getByRole("radio", { name: "Mit Exportdatei" })).toBeVisible();
-  await expect(weg.getByText(/Selling Partner API/)).toBeVisible();
-  await weg.getByRole("radio", { name: "Unter Verbindungen" }).check();
-  // Der Weg führt zum Abschnitt; der Knopf sagt das auch
-  await weg.getByRole("button", { name: "Zu Verbindungen" }).click();
-  await page.waitForURL((url) => url.pathname === "/bank/verbindungen" && url.hash === "#amazon", { timeout: 60_000 });
-  await expect(karte()).toContainText("nicht verbunden");
-  await expect(karte().locator("details")).toHaveAttribute("open", "");
+  await expect(page.getByText("Schritt 1 von 3")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Konto", level: 2 })).toBeVisible();
+  await expect(page.getByText(/SP-API.*Amazon-Abrechnungen/)).toBeVisible();
+  await expect(page.getByRole("form", { name: "Weg" })).toHaveCount(0);
 });
 
 test("Falsches Refresh-Token: Amazon lehnt ab, nichts wird gespeichert", async () => {

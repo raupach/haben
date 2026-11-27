@@ -8,7 +8,7 @@ import { Field } from "../../components/Field.tsx";
 import { UploadButton } from "../../components/UploadButton.tsx";
 import type { PspDaten } from "../../components/ZahlungsdienstleisterFormular.tsx";
 import { errorMessage } from "../../lib/format.ts";
-import { bereichHinweis, dateiWeg, istStore, type PspWeg } from "../../lib/psp-wege.ts";
+import { bereichHinweis, dateiWeg, istStore, kontoHinweis, type PspWeg } from "../../lib/psp-wege.ts";
 import { addProviderAccount, importStatements } from "../../server/functions/bank.ts";
 import { hatMarktplatzKonto } from "./-bank-daten.ts";
 import { SchrittKarte } from "./-bank-einrichtung.tsx";
@@ -36,7 +36,7 @@ function wegHinweis(weg: PspWeg, provider: string, name: string): string {
   if (weg === "api") return `Haben holt neue Umsätze selbst, täglich oder stündlich. Du brauchst einen Zugang mit Leserecht bei ${name}.`;
   if (weg === "datei")
     return `Du lädst den Export (${dateiWeg(provider)?.datei}) bei ${name} herunter und importierst ihn. Gut für Zeiträume vor dem ersten Abruf.`;
-  if (weg === "bereich") return bereichHinweis(provider, name);
+  if (weg === "bereich") return bereichHinweis(name);
   return "Ein Konto mit eigenem Verrechnungskonto; die Umsätze erfasst du per Hand.";
 }
 
@@ -182,7 +182,7 @@ export function KontoSchritt({
           </Field>
         )}
         {neu && provider === "amazon" && (
-          <Field label="Marktplatz" hint="Ein Amazon-Konto gehört zu genau einem Marktplatz; Haben lehnt Abrechnungen eines anderen ab.">
+          <Field label="Marktplatz" hint={kontoHinweis()}>
             {(control) => (
               <select
                 {...control}
