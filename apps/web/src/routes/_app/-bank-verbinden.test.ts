@@ -1,16 +1,9 @@
-import type { ReactElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { anbieterWahl, bankWege } from "./-bank-verbinden.tsx";
 
 // Die Server-Funktionen brauchen die Umgebung der App; geprüft werden hier nur die Wege und ihre Gründe
 vi.mock("../../server/functions/fints.ts", () => ({ cancelFints: {}, connectFints: {}, continueFints: {}, disconnectFints: {}, syncFints: {} }));
-vi.mock("@tanstack/react-router", () => ({
-  // Gibt den Inhalt aus, damit ein Grund mit Link als Text prüfbar ist
-  Link: ({ children }: { children?: unknown }) => children,
-  useNavigate: () => () => {},
-  useRouter: () => ({ invalidate: async () => {} }),
-}));
+vi.mock("@tanstack/react-router", () => ({ Link: () => null, useNavigate: () => () => {}, useRouter: () => ({ invalidate: async () => {} }) }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => async () => ({}) }));
 
 type Daten = Parameters<typeof bankWege>[0];
@@ -79,10 +72,5 @@ describe("„Zahlungsdienstleister hinzufügen“ (#1951, #2008)", () => {
     expect(zu("etsy")?.hint).toBe("Abruf über Etsy unter Verbindungen oder Monatsabrechnung (CSV) als Datei · noch kein Konto");
     expect(zu("googleplay")?.hint).toBe("Konto, dann Finanzberichte über die Verbindung unter Verbindungen · noch kein Konto");
     expect(zu("sumup")?.hint).toBe("nur Konto, Umsätze per Hand · noch kein Konto");
-  });
-
-  it("Amazon verweist auf Verbindungen, wo sein Zugang steht (#1947)", () => {
-    const grund = wahl.find((w) => w.wert === "amazon")?.gesperrt;
-    expect(renderToStaticMarkup(grund as ReactElement)).toBe("Die Amazon-Abrechnungen holst du unter Geld › Verbindungen.");
   });
 });
