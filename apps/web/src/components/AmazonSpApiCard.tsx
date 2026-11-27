@@ -55,7 +55,10 @@ export function AmazonSpApiCard({ data }: { data: Data }) {
           {(control) => <input {...control} name="clientId" type="text" autoComplete="off" />}
         </Field>
         <Field label={`Client-Secret${behalten}`}>{(control) => <input {...control} name="clientSecret" type="password" autoComplete="off" />}</Field>
-        <Field label={`Refresh-Token${behalten}`} hint="Erscheint beim Autorisieren der App; Amazon verlangt die Autorisierung jedes Jahr neu.">
+        <Field
+          label={`Refresh-Token${behalten}`}
+          hint="Erscheint beim Autorisieren der App. Amazon schaltet eine länger als 365 Tage ungenutzte Autorisierung ab; dann neu autorisieren und den neuen Wert eintragen."
+        >
           {(control) => <input {...control} name="refreshToken" type="password" autoComplete="off" />}
         </Field>
         <div className="actions">
