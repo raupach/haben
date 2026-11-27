@@ -111,6 +111,18 @@ test("Einrichtung", async () => {
   await einrichten(page);
 });
 
+test("Die geführte Einrichtung bietet Amazon beide Wege und führt zum Abschnitt unter Verbindungen", async () => {
+  await gehe(page, "/bank/verbinden/amazon");
+  const weg = page.getByRole("form", { name: "Weg" });
+  await expect(weg.getByRole("radio", { name: "Mit Exportdatei" })).toBeVisible();
+  await expect(weg.getByText(/Selling Partner API/)).toBeVisible();
+  await weg.getByRole("radio", { name: "Unter Verbindungen" }).check();
+  await weg.getByRole("button", { name: "Weiter" }).click();
+  await page.waitForURL((url) => url.pathname === "/bank/verbindungen" && url.hash === "#amazon", { timeout: 60_000 });
+  await expect(karte()).toContainText("nicht verbunden");
+  await expect(karte().locator("details")).toHaveAttribute("open", "");
+});
+
 test("Falsches Refresh-Token: Amazon lehnt ab, nichts wird gespeichert", async () => {
   await gehe(page, "/bank/verbindungen");
   await expect(karte()).toContainText("nicht verbunden");

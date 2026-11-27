@@ -72,10 +72,16 @@ export const DATEI_WEGE: Partial<Record<PaymentProvider, DateiWeg>> = {
   },
 };
 
-/** Anbieter mit eigenem Abschnitt unter „Geld › Verbindungen“, mit dessen Anker; Etsy legt sein Konto dort selbst an */
-const BEREICH: Partial<Record<PaymentProvider, "etsy">> = { etsy: "etsy" };
+/**
+ * Anbieter mit eigenem Abschnitt unter „Geld › Verbindungen“, mit dessen Anker; Etsy legt sein Konto dort selbst an,
+ * Amazon den Zugang zur SP-API je Kontobestand (#1947)
+ */
+const BEREICH: Partial<Record<PaymentProvider, "etsy" | "amazon">> = { etsy: "etsy", amazon: "amazon" };
 
-export function bereichAnker(provider: string): "etsy" | null {
+/** Wie der Anbieter im Weg „bereich“ heißt; kurz, weil der Satz schon „unter Verbindungen“ sagt */
+const BEREICH_NAME: Record<"etsy" | "amazon", string> = { etsy: "Etsy", amazon: "Amazon" };
+
+export function bereichAnker(provider: string): "etsy" | "amazon" | null {
   return BEREICH[provider as PaymentProvider] ?? null;
 }
 
@@ -103,7 +109,7 @@ export function wegText(provider: string, wege: readonly PspWeg[], zugang: strin
   const teile = wege.map((w) => {
     if (w === "api") return zugang ? `Abruf mit ${zugang}` : "Abruf über die API";
     if (w === "datei") return `${datei} als Datei`;
-    if (w === "bereich") return "Abruf über Etsy unter Verbindungen";
+    if (w === "bereich") return `Abruf über ${BEREICH_NAME[bereichAnker(provider)!]} unter Verbindungen`;
     return istStore(provider) ? "Konto, dann Finanzberichte über die Verbindung unter Verbindungen" : "nur Konto, Umsätze per Hand";
   });
   return teile.join(" oder ");
