@@ -97,7 +97,7 @@ const versuch = (actor: string, v: AmazonVersuch) => withActor(actor, (tx) => pr
 
 export async function amazonDatenabruf(actor: string, optionen: AbrufOptionen = {}): Promise<AmazonAbrufErgebnis> {
   const connection = await loadAmazonSpConnection();
-  if (!connection) throw new AmazonSpError("Der Amazon-Zugang ist nicht eingerichtet (Einstellungen › Bank).");
+  if (!connection) throw new AmazonSpError("Der Amazon-Zugang ist nicht eingerichtet (Geld › Verbindungen).");
   const client = amazonSpClientFor(connection.credentials);
   let reports: AmazonSettlementReportInfo[];
   optionen.fortschritt?.({ phase: "liste" });

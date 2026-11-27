@@ -2559,7 +2559,7 @@ export const bankImports = pgTable("bank_imports", {
 });
 
 /**
- * Zugang zur Selling Partner API von Amazon (Einstellungen › Bank, #1947), genau eine Zeile: Client-ID, Client-Secret
+ * Zugang zur Selling Partner API von Amazon (Geld › Verbindungen, #1947), genau eine Zeile: Client-ID, Client-Secret
  * und Refresh-Token einer selbst autorisierten privaten App, zusammen verschlüsselt
  */
 export const amazonSpConnections = pgTable(

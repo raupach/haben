@@ -11,7 +11,7 @@ import {
   saveAmazonSpConnection,
 } from "../modules/amazon/index.ts";
 
-/** Selling Partner API von Amazon (#1947): Zugang unter Einstellungen › Bank, Datenabruf auf der Seite Bank */
+/** Selling Partner API von Amazon (#1947): Zugang unter Geld › Verbindungen, Datenabruf auf der Seite Bank */
 
 export const getAmazonSpSettings = createServerFn({ method: "GET" })
   .middleware([authMiddleware])

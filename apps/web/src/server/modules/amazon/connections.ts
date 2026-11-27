@@ -8,7 +8,7 @@ import { env } from "../../env.ts";
 import { UserError } from "../../errors.ts";
 
 /*
- * Zugang zur Selling Partner API von Amazon (Einstellungen › Bank, #1947).
+ * Zugang zur Selling Partner API von Amazon (Geld › Verbindungen, #1947).
  *
  * Wer Haben betreibt, registriert sich im Solution Provider Portal als privater Entwickler, legt eine private App mit
  * der Rolle „Finance and Accounting“ an und autorisiert sie selbst; dabei zeigt Amazon das Refresh-Token
