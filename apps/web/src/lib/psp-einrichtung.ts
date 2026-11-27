@@ -21,6 +21,7 @@ export const SCHRITT_TITEL: Record<string, string> = {
   einstellungen: "Name und Zeitraum",
   abruf: "Erster Abruf",
   konto: "Konto",
+  verbindung: "Verbindung",
   datei: "Datei",
   ergebnis: "Ergebnis",
 };

@@ -21,7 +21,7 @@ describe("Wege eines Zahlungsdienstleisters (#2008)", () => {
   });
 
   it("Amazon sagt im Weg „bereich“, dass der Zugang unter Verbindungen steht (#1947)", () => {
-    expect(bereichHinweis("amazon", "Amazon")).toMatch(/Selling Partner API.*Amazon-Abrechnungen/);
+    expect(bereichHinweis("amazon", "Amazon")).toMatch(/Selling Partner API.*Amazon-Abrechnungen.*Mit Exportdatei/);
     expect(bereichHinweis("etsy", "Etsy Payments")).toBe(
       "Haben ruft Etsy Payments über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.",
     );

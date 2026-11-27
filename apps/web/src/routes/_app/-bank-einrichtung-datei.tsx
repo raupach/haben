@@ -94,7 +94,7 @@ export function WegSchritt({
             Abbrechen
           </Link>
           <button type="submit" className="btn btn-primary">
-            Weiter
+            {weg === "bereich" ? "Zu Verbindungen" : "Weiter"}
           </button>
         </div>
       </form>

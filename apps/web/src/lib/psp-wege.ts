@@ -96,7 +96,7 @@ export function istStore(provider: string): boolean {
  */
 export function bereichHinweis(provider: string, name: string): string {
   if (bereichAnker(provider) === "amazon")
-    return "Haben holt die Abrechnungen über die Selling Partner API. Den Zugang richtest du unter Geld › Verbindungen in Amazon-Abrechnungen ein; jede Abrechnung landet im Amazon-Konto ihres Marktplatzes.";
+    return "Haben holt die Abrechnungen über die Selling Partner API. Den Zugang richtest du unter Geld › Verbindungen in Amazon-Abrechnungen ein; jede Abrechnung landet im Amazon-Konto ihres Marktplatzes. Die Konten legst du über den Weg Mit Exportdatei an.";
   return `Haben ruft ${name} über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.`;
 }
 

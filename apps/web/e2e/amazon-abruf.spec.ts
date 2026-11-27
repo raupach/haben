@@ -117,7 +117,8 @@ test("Die geführte Einrichtung bietet Amazon beide Wege und führt zum Abschnit
   await expect(weg.getByRole("radio", { name: "Mit Exportdatei" })).toBeVisible();
   await expect(weg.getByText(/Selling Partner API/)).toBeVisible();
   await weg.getByRole("radio", { name: "Unter Verbindungen" }).check();
-  await weg.getByRole("button", { name: "Weiter" }).click();
+  // Der Weg führt zum Abschnitt; der Knopf sagt das auch
+  await weg.getByRole("button", { name: "Zu Verbindungen" }).click();
   await page.waitForURL((url) => url.pathname === "/bank/verbindungen" && url.hash === "#amazon", { timeout: 60_000 });
   await expect(karte()).toContainText("nicht verbunden");
   await expect(karte().locator("details")).toHaveAttribute("open", "");
