@@ -1,7 +1,7 @@
 import { AmazonSpApiError, type AmazonSettlementReportInfo, parseStatement, readAmazonSettlementHead, StatementParseError } from "@haben/import";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { withActor } from "../../db/actor.ts";
-import { db, schema } from "../../db/index.ts";
+import { db, schema, type Tx } from "../../db/index.ts";
 import { sha256Of } from "../../storage.ts";
 import {
   abgeschlosseneAmazonReports,
@@ -93,7 +93,24 @@ async function amazonKonten(): Promise<Map<string, Konto[]>> {
   return konten;
 }
 
+/** Reiht parallele Abrufe hintereinander (feste Sperre, unabhängig vom Zugang); danach sieht jeder, was der andere abgeschlossen hat */
+const sperre = (tx: Tx) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('haben-amazon-datenabruf', 0))`);
+
 const versuch = (actor: string, v: AmazonVersuch) => withActor(actor, (tx) => protokolliereAmazonVersuch(tx, v));
+
+/**
+ * Ein Ergebnis, das eine Report-ID abschließt, unter derselben Sperre wie die Übernahme; false, wenn ein paralleler
+ * Abruf den Report schon abgeschlossen hat. Ohne die Prüfung verletzt der zweite Abruf den Teilindex
+ * amazon_settlement_reports_abgeschlossen und bricht mit einem internen Fehler ab.
+ */
+async function abschliessen(actor: string, v: AmazonVersuch): Promise<boolean> {
+  return withActor(actor, async (tx) => {
+    await sperre(tx);
+    if (await amazonReportAbgeschlossen(tx, v.reportId)) return false;
+    await protokolliereAmazonVersuch(tx, v);
+    return true;
+  });
+}
 
 export async function amazonDatenabruf(actor: string, optionen: AbrufOptionen = {}): Promise<AmazonAbrufErgebnis> {
   const connection = await loadAmazonSpConnection();
@@ -203,7 +220,10 @@ async function verarbeite(
   const kopf = { settlementId: head.settlementId, currency: head.currency, periodFrom: head.periodFrom, periodTo: head.periodTo };
   if (head.currency !== "EUR") {
     const marketplace = head.marketplaces.join(", ") || "unbekannter Marktplatz";
-    await versuch(actor, { ...kopf, reportId: report.reportId, ergebnis: "fremdwaehrung", marketplace });
+    if (!(await abschliessen(actor, { ...kopf, reportId: report.reportId, ergebnis: "fremdwaehrung", marketplace }))) {
+      ergebnis.schonAbgerufen++;
+      return `Report ${report.reportId}: schon abgerufen`;
+    }
     ergebnis.fremdwaehrung.push({ marketplace, currency: head.currency });
     return `${marketplace}: ${head.currency}, nicht übernommen`;
   }
@@ -233,8 +253,7 @@ async function verarbeite(
   const filename = `amazon-settlement-${head.settlementId}.txt`;
   try {
     const result = await withActor(actor, async (tx) => {
-      // Reiht parallele Abrufe hintereinander (feste Sperre, unabhängig vom Zugang); danach sieht dieser, was der andere abgeschlossen hat
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('haben-amazon-datenabruf', 0))`);
+      await sperre(tx);
       if (await amazonReportAbgeschlossen(tx, report.reportId)) return null;
       // Ein Konto, eine Quelle (#306): liefert schon ein Dienst über die REST-API in dieses Konto, kein Abruf
       await keineExterneQuelle(tx, [konto.id]);
