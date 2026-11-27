@@ -75,9 +75,6 @@ export const DATEI_WEGE: Partial<Record<PaymentProvider, DateiWeg>> = {
 /** Anbieter mit eigenem Abschnitt unter „Geld › Verbindungen“, mit dessen Anker; Etsy legt sein Konto dort selbst an */
 const BEREICH: Partial<Record<PaymentProvider, "etsy">> = { etsy: "etsy" };
 
-/** Wie der Anbieter im Weg „bereich“ heißt; kurz, weil der Satz schon „unter Verbindungen“ sagt */
-const BEREICH_NAME: Record<"etsy", string> = { etsy: "Etsy" };
-
 export function bereichAnker(provider: string): "etsy" | null {
   return BEREICH[provider as PaymentProvider] ?? null;
 }
@@ -85,11 +82,6 @@ export function bereichAnker(provider: string): "etsy" | null {
 /** Google Play und App Store: erst das Konto, dann der Zugang im Abschnitt „Stores“ unter Verbindungen, der hineinschreibt */
 export function istStore(provider: string): boolean {
   return provider === "googleplay" || provider === "appstore";
-}
-
-/** Was der Weg „bereich“ tut: Etsy legt sein Konto beim Abruf des Zahlungsverlaufs selbst an */
-export function bereichHinweis(name: string): string {
-  return `Haben ruft ${name} über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.`;
 }
 
 /**
@@ -119,7 +111,7 @@ export function wegText(provider: string, wege: readonly PspWeg[], zugang: strin
   const teile = wege.map((w) => {
     if (w === "api") return zugang ? `Abruf mit ${zugang}` : "Abruf über die API";
     if (w === "datei") return `${datei} als Datei`;
-    if (w === "bereich") return `Abruf über ${BEREICH_NAME[bereichAnker(provider)!]} unter Verbindungen`;
+    if (w === "bereich") return "Abruf über Etsy unter Verbindungen";
     return istStore(provider) ? "Konto, dann Finanzberichte über die Verbindung unter Verbindungen" : "nur Konto, Umsätze per Hand";
   });
   return teile.join(" oder ");

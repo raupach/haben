@@ -28,8 +28,6 @@ export const Route = createFileRoute("/_app/bank_/verbinden/$anbieter")({
 function schritteVon(weg: PspWeg, anbieter: PspAnbieter | undefined): string[] {
   if (weg === "api" && anbieter) return [...anbieter.schritte];
   if (weg === "datei") return ["konto", "datei", "ergebnis"];
-  // Der Weg „bereich“ führt zum Abschnitt unter Verbindungen; dort richtest du den Zugang ein
-  if (weg === "bereich") return ["verbindung"];
   return ["konto"];
 }
 
