@@ -273,6 +273,13 @@ describe.skipIf(!testDatabaseUrl)("Amazon Datenabruf (Postgres)", () => {
     expect(r).toEqual({ n: 2 });
   });
 
+  it("zwei gleichzeitige Abrufe schließen auch eine Abrechnung in Fremdwährung nur einmal ab", async () => {
+    api.stand.reports = [report("R-GBP-P", { settlementId: "S-GBP-P", marketplace: "Amazon.co.uk", currency: "GBP" })];
+    await expect(Promise.all([amazon.amazonDatenabruf(actor), amazon.amazonDatenabruf(actor)])).resolves.toHaveLength(2);
+    const [r] = await sql`select count(*)::int as n from amazon_settlement_reports where report_id = 'R-GBP-P'`;
+    expect(r).toEqual({ n: 1 });
+  });
+
   it("ohne Zugang lehnt der Abruf ab", async () => {
     await amazon.deleteAmazonSpConnection(actor);
     await expect(amazon.amazonDatenabruf(actor)).rejects.toThrow(/nicht eingerichtet/);
