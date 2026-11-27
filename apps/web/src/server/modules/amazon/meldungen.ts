@@ -34,7 +34,7 @@ export function abrufMeldungen(e: AmazonAbrufErgebnis): AbrufMeldung[] {
   if (ohne.length > 0) {
     meldungen.push({
       tone: "info",
-      text: `Kein Amazon-Konto für ${ohne.join(", ")}: ${anzahl(e.ohneKonto.length, "Abrechnung", "Abrechnungen")} nicht übernommen. Lege unter „Konto hinzufügen“ ein Konto an, wenn du sie übernehmen willst; dann holt der nächste Abruf sie.`,
+      text: `Kein Amazon-Konto für ${ohne.join(", ")}: ${anzahl(e.ohneKonto.length, "Abrechnung", "Abrechnungen")} nicht übernommen. Lege unter Konto verbinden › Zahlungsdienstleister hinzufügen › Amazon ein Konto für den Marktplatz an, wenn du sie übernehmen willst; dann holt der nächste Abruf sie.`,
     });
   }
   const mehr = [...new Set(e.mehrdeutig)];

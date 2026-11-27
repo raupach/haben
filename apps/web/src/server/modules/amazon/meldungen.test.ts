@@ -40,7 +40,7 @@ describe("Meldungen des Amazon-Datenabrufs", () => {
       { tone: "info", text: "1 Abrechnung in Fremdwährung nicht übernommen (Amazon.co.uk in GBP); Haben übernimmt nur Euro." },
       {
         tone: "info",
-        text: "Kein Amazon-Konto für Amazon.nl: 1 Abrechnung nicht übernommen. Lege unter „Konto hinzufügen“ ein Konto an, wenn du sie übernehmen willst; dann holt der nächste Abruf sie.",
+        text: "Kein Amazon-Konto für Amazon.nl: 1 Abrechnung nicht übernommen. Lege unter Konto verbinden › Zahlungsdienstleister hinzufügen › Amazon ein Konto für den Marktplatz an, wenn du sie übernehmen willst; dann holt der nächste Abruf sie.",
       },
       { tone: "danger", text: "Mehrere Amazon-Konten für Amazon.it: 1 Abrechnung nicht übernommen; bitte von Hand in das richtige Konto importieren." },
       { tone: "danger", text: "Report R9: kaputt" },
