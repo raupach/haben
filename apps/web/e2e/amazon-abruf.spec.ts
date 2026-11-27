@@ -5,9 +5,10 @@ import { AMAZON_PORT, databaseUrlFuer } from "./durchlaeufe.ts";
 import { durchlaufSeite, einrichten, gehe } from "./einrichtung.ts";
 
 /**
- * Amazon Datenabruf (#1947) in eigener, leerer Datenbank (Projekt „amazon-abruf“): Zugang prüfen und speichern, Knopf
- * nur mit Zugang und Amazon-Konto, Abruf mit gesperrtem Knopf, zweiter Abruf ohne Dubletten, Zugang entfernen. Die
- * nachgebaute SP-API kennt nur das Refresh-Token unten und liefert einen Report für Amazon.de. Werte erfunden.
+ * Amazon Datenabruf (#1947) in eigener, leerer Datenbank (Projekt „amazon-abruf“): Zugang unter Verbindungen prüfen und
+ * speichern, Knopf auf der Bank nur mit Zugang und Amazon-Konto, Abruf mit gesperrtem Knopf, zweiter Abruf ohne
+ * Dubletten, Zugang entfernen. Die nachgebaute SP-API kennt nur das Refresh-Token unten und liefert einen Report für
+ * Amazon.de. Werte erfunden.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -87,7 +88,14 @@ test.afterEach(() => {
   expect(pageErrors).toEqual([]);
 });
 
-const karte = () => page.getByRole("region", { name: "Amazon SP-API" });
+/** Der eingeklappte Abschnitt „Amazon-Abrechnungen“ in Stores und Marktplätze (EinklappAbschnitt, id „amazon“) */
+const karte = () => page.locator('section[aria-labelledby="amazon"]');
+/** Klappt den Abschnitt auf; nach dem Speichern bleibt er offen, weil ihn die Seite hält */
+async function karteOeffnen() {
+  const details = karte().locator("details");
+  if (!(await details.evaluate((element: HTMLDetailsElement) => element.open))) await karte().locator("summary").click();
+  await expect(details).toHaveAttribute("open", "");
+}
 const knopf = () => page.getByRole("button", { name: /^Amazon Datenabruf( läuft …)?$/ });
 
 async function mitDatenbank<T>(arbeit: (sql: postgres.Sql) => Promise<T>): Promise<T> {
@@ -104,8 +112,9 @@ test("Einrichtung", async () => {
 });
 
 test("Falsches Refresh-Token: Amazon lehnt ab, nichts wird gespeichert", async () => {
-  await gehe(page, "/einstellungen?bereich=bank");
-  await expect(karte().getByText("Nicht eingerichtet.")).toBeVisible();
+  await gehe(page, "/bank/verbindungen");
+  await expect(karte()).toContainText("nicht verbunden");
+  await karteOeffnen();
   await karte().getByLabel("Client-ID", { exact: true }).fill(CLIENT_ID);
   await karte().getByLabel("Client-Secret", { exact: true }).fill(SECRET);
   await karte().getByLabel("Refresh-Token", { exact: true }).fill("Atzr|falsch");
@@ -117,12 +126,13 @@ test("Falsches Refresh-Token: Amazon lehnt ab, nichts wird gespeichert", async (
 });
 
 test("Zugang speichern: geprüft, verschlüsselt, nur die letzten Zeichen sichtbar", async () => {
+  await karteOeffnen();
   await karte().getByLabel("Client-ID", { exact: true }).fill(CLIENT_ID);
   await karte().getByLabel("Client-Secret", { exact: true }).fill(SECRET);
   await karte().getByLabel("Refresh-Token", { exact: true }).fill(TOKEN);
   await karte().getByRole("button", { name: "Speichern" }).click();
   await expect(karte().getByText("Zugang geprüft und gespeichert.")).toBeVisible();
-  await expect(karte().getByText("Eingerichtet (Client-ID …AB12).")).toBeVisible();
+  await expect(karte()).toContainText("verbunden (Client-ID …AB12)");
   const [zeile_] = await mitDatenbank((sql) => sql`select position(${SECRET} in encode(ciphertext, 'escape')) as secret from amazon_sp_connections`);
   expect(zeile_).toEqual({ secret: 0 });
 });
@@ -160,10 +170,11 @@ test("Ohne Amazon-Konto kein Knopf; mit Konto holt der Abruf die Abrechnung, ges
 });
 
 test("Zugang entfernen: Knopf verschwindet, Umsätze bleiben", async () => {
-  await gehe(page, "/einstellungen?bereich=bank");
+  await gehe(page, "/bank/verbindungen");
+  await karteOeffnen();
   await karte().getByRole("button", { name: "Zugang entfernen" }).click();
   await page.getByRole("dialog", { name: "Amazon-Zugang entfernen?" }).getByRole("button", { name: "Entfernen" }).click();
-  await expect(karte().getByText("Nicht eingerichtet.")).toBeVisible();
+  await expect(karte()).toContainText("nicht verbunden");
   await gehe(page, "/bank");
   await expect(knopf()).toHaveCount(0);
   expect(await mitDatenbank((sql) => sql`select count(*)::int as n from bank_transactions`)).toEqual([{ n: 3 }]);

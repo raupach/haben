@@ -45,10 +45,11 @@ export function AmazonSpApiCard({ data }: { data: Data }) {
         </a>{" "}
         eine selbst autorisierte private App mit der Rolle „Finance and Accounting“. Amazon hält die Reports 90 Tage bereit; ältere importierst du als Datei.
       </p>
-      <p className="small" style={{ margin: "0.5rem 0 0" }}>
-        <strong>{data.configured ? `Eingerichtet (Client-ID …${data.keyHint}).` : "Nicht eingerichtet."}</strong>
-        {data.updatedAt ? ` Zuletzt geändert: ${formatDateTime(data.updatedAt)}.` : ""}
-      </p>
+      {data.updatedAt && (
+        <p className="small muted" style={{ margin: 0 }}>
+          Zuletzt geändert: {formatDateTime(data.updatedAt)}.
+        </p>
+      )}
       <form className="stack" onSubmit={onSubmit}>
         <Field label={`Client-ID${behalten}`} hint="Aus der App im Solution Provider Portal; alle drei Werte liegen verschlüsselt in der Datenbank.">
           {(control) => <input {...control} name="clientId" type="text" autoComplete="off" />}

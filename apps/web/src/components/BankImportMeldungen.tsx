@@ -72,7 +72,7 @@ export function ImportMeldungen({
             ))}
           </ul>
           {onClose && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8, maxWidth: 560 }}>
               <button type="button" className="btn btn-sm" onClick={onClose}>
                 Meldungen schließen
               </button>

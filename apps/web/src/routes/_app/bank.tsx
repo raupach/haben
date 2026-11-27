@@ -174,9 +174,7 @@ function BankPage() {
           davor={
             <>
               {datei.knopf}
-              {data.amazonAbruf && hatAmazonKonto && (
-                <AmazonDatenabrufKnopf disabled={datei.busy} onMessages={datei.setMessages} onStatus={setAmazonStatus} />
-              )}
+              {data.amazonAbruf && hatAmazonKonto && <AmazonDatenabrufKnopf disabled={datei.busy} onMessages={datei.setMessages} onStatus={setAmazonStatus} />}
             </>
           }
         />
