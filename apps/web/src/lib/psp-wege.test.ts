@@ -1,6 +1,6 @@
 import { PAYMENT_PROVIDERS } from "@haben/core";
 import { describe, expect, it } from "vitest";
-import { DATEI_WEGE, bereichAnker, istStore, wegText, wegeVon } from "./psp-wege.ts";
+import { bereichHinweis, DATEI_WEGE, bereichAnker, istStore, wegText, wegeVon } from "./psp-wege.ts";
 
 describe("Wege eines Zahlungsdienstleisters (#2008)", () => {
   it("API zuerst, dann eigener Bereich, dann Datei; ohne alles nur das Konto, auch bei den Stores", () => {
@@ -18,6 +18,13 @@ describe("Wege eines Zahlungsdienstleisters (#2008)", () => {
     expect(bereichAnker("appstore")).toBeNull();
     expect(istStore("appstore")).toBe(true);
     expect(istStore("amazon")).toBe(false);
+  });
+
+  it("Amazon sagt im Weg „bereich“, dass der Zugang unter Verbindungen steht (#1947)", () => {
+    expect(bereichHinweis("amazon", "Amazon")).toMatch(/Selling Partner API.*Amazon-Abrechnungen/);
+    expect(bereichHinweis("etsy", "Etsy Payments")).toBe(
+      "Haben ruft Etsy Payments über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.",
+    );
   });
 
   it("der Weg „bereich“ nennt den Anbieter beim Namen (#1947)", () => {

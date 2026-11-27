@@ -90,6 +90,16 @@ export function istStore(provider: string): boolean {
   return provider === "googleplay" || provider === "appstore";
 }
 
+/**
+ * Was der Weg „bereich“ tut: Amazon holt seine Abrechnungen über die SP-API und schreibt in das Konto des Marktplatzes,
+ * Etsy legt sein Konto beim Abruf des Zahlungsverlaufs selbst an
+ */
+export function bereichHinweis(provider: string, name: string): string {
+  if (bereichAnker(provider) === "amazon")
+    return "Haben holt die Abrechnungen über die Selling Partner API. Den Zugang richtest du unter Geld › Verbindungen in Amazon-Abrechnungen ein; jede Abrechnung landet im Amazon-Konto ihres Marktplatzes.";
+  return `Haben ruft ${name} über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.`;
+}
+
 export function dateiWeg(provider: string): DateiWeg | null {
   return DATEI_WEGE[provider as PaymentProvider] ?? null;
 }

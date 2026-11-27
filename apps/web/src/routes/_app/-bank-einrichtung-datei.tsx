@@ -8,7 +8,7 @@ import { Field } from "../../components/Field.tsx";
 import { UploadButton } from "../../components/UploadButton.tsx";
 import type { PspDaten } from "../../components/ZahlungsdienstleisterFormular.tsx";
 import { errorMessage } from "../../lib/format.ts";
-import { dateiWeg, istStore, type PspWeg } from "../../lib/psp-wege.ts";
+import { bereichHinweis, dateiWeg, istStore, type PspWeg } from "../../lib/psp-wege.ts";
 import { addProviderAccount, importStatements } from "../../server/functions/bank.ts";
 import { hatMarktplatzKonto } from "./-bank-daten.ts";
 import { SchrittKarte } from "./-bank-einrichtung.tsx";
@@ -36,10 +36,7 @@ function wegHinweis(weg: PspWeg, provider: string, name: string): string {
   if (weg === "api") return `Haben holt neue Umsätze selbst, täglich oder stündlich. Du brauchst einen Zugang mit Leserecht bei ${name}.`;
   if (weg === "datei")
     return `Du lädst den Export (${dateiWeg(provider)?.datei}) bei ${name} herunter und importierst ihn. Gut für Zeiträume vor dem ersten Abruf.`;
-  if (weg === "bereich")
-    return provider === "amazon"
-      ? "Haben holt die Abrechnungen über die Selling Partner API. Den Zugang richtest du unter Geld › Verbindungen in Amazon-Abrechnungen ein; jede Abrechnung landet im Amazon-Konto ihres Marktplatzes."
-      : `Haben ruft ${name} über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.`;
+  if (weg === "bereich") return bereichHinweis(provider, name);
   return "Ein Konto mit eigenem Verrechnungskonto; die Umsätze erfasst du per Hand.";
 }
 
