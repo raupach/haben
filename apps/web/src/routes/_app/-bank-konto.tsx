@@ -324,6 +324,7 @@ export function KontoVerbindenKopf({
   onCreated,
   onMessage,
   davor,
+  status,
   dialog,
   setDialog,
 }: {
@@ -334,6 +335,8 @@ export function KontoVerbindenKopf({
   onMessage: (messages: ImportMessage[]) => void;
   /** Knöpfe vor „Konto verbinden“, etwa „Datei importieren“ */
   davor?: ReactNode;
+  /** Zeile unter den Knöpfen, etwa der Fortschritt des Amazon-Abrufs; gehört zum Kopf statt in den Abstand der Seite */
+  status?: ReactNode;
   dialog?: VerbindenDialog;
   setDialog?: (d: VerbindenDialog) => void;
 }) {
@@ -357,6 +360,7 @@ export function KontoVerbindenKopf({
           setDialog={setOffen}
         />
       </div>
+      {status}
       {showAccount && (
         <NeuesKontoForm
           datei={showAccount === "datei"}

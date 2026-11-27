@@ -177,21 +177,23 @@ function BankPage() {
               {data.amazonAbruf && hatAmazonKonto && <AmazonDatenabrufKnopf disabled={datei.busy} onMessages={datei.setMessages} onStatus={setAmazonStatus} />}
             </>
           }
+          status={
+            // Statuszeile des Abrufs unter den Knöpfen: die Phase für die Live-Region, „zuletzt“ darunter
+            amazonStatus && (
+              <>
+                <p className="small muted" role="status" style={{ margin: 0, textAlign: "right" }}>
+                  {amazonStatus.phase}
+                </p>
+                {amazonStatus.zuletzt && (
+                  <p className="small muted" style={{ margin: 0, textAlign: "right" }}>
+                    zuletzt: {amazonStatus.zuletzt}
+                  </p>
+                )}
+              </>
+            )
+          }
         />
       </div>
-      {/* Statuszeile des Abrufs unter den Knöpfen: die Phase für die Live-Region, „zuletzt“ daneben */}
-      {amazonStatus && (
-        <>
-          <p className="small muted" role="status" style={{ margin: 0, textAlign: "right" }}>
-            {amazonStatus.phase}
-          </p>
-          {amazonStatus.zuletzt && (
-            <p className="small muted" style={{ margin: 0, textAlign: "right" }}>
-              zuletzt: {amazonStatus.zuletzt}
-            </p>
-          )}
-        </>
-      )}
       {datei.zielFeld}
 
       {data.accounts.length === 0 ? (
