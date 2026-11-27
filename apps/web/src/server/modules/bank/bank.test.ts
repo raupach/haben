@@ -1168,6 +1168,23 @@ describe.skipIf(!testDatabaseUrl)("Bankabgleich (Postgres)", () => {
     await expect(bank.importStatement(actor, file(""), amazon.id)).resolves.toMatchObject({ added: 0 });
   }, 30_000);
 
+  it("Amazon: ohne Kontoangabe wählt die Datei das Konto ihres Marktplatzes (#1947)", async () => {
+    const file = (marketplace: string) => ({ bytes: new TextEncoder().encode(amazonReport(marketplace)), filename: "amazon-settlement.txt" });
+
+    // Noch kein Konto für den Marktplatz: die Meldung sagt, wie eins entsteht
+    await expect(bank.importStatement(actor, file("Amazon.fr"), null)).rejects.toThrow(/noch kein Amazon-Konto für Amazon\.fr/);
+
+    const de = await bank.createProviderAccount(actor, { name: "Amazon.de", provider: "amazon", marketplace: "Amazon.de" });
+    const fr = await bank.createProviderAccount(actor, { name: "Amazon.fr", provider: "amazon", marketplace: "Amazon.fr" });
+    // Die Datei nennt den Marktplatz; damit steht das Konto fest, ohne Nachfrage
+    await expect(bank.importStatement(actor, file("Amazon.de"), null)).resolves.toMatchObject({ accountId: de.id, added: 3 });
+    await expect(bank.importStatement(actor, file("Amazon.fr"), null)).resolves.toMatchObject({ accountId: fr.id, added: 3 });
+
+    // Zwei Konten am selben Marktplatz: dann bleibt die Wahl nötig
+    await bank.createProviderAccount(actor, { name: "Amazon.de 2", provider: "amazon", marketplace: "Amazon.de" });
+    await expect(bank.importStatement(actor, file("Amazon.de"), null)).rejects.toThrow(/2 Amazon-Konten/);
+  }, 30_000);
+
   it("Amazon: der Marktplatz lässt sich nur ändern, solange das Konto leer ist", async () => {
     const amazon = await bank.createProviderAccount(actor, { name: "Amazon", provider: "amazon", marketplace: "Amazon.de" });
     await bank.updateAccount(actor, { id: amazon.id, name: "Amazon", marketplace: "Amazon.fr" });

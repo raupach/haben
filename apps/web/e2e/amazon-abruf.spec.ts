@@ -177,6 +177,14 @@ test("Ohne Amazon-Konto kein Knopf; mit Konto holt der Abruf die Abrechnung, ges
   expect(await mitDatenbank((sql) => sql`select count(*)::int as n from bank_transactions`)).toEqual([{ n: 3 }]);
 });
 
+test("Dateiimport ohne Kontoangabe: der Marktplatz der Abrechnung wählt das Amazon-Konto (#1947)", async () => {
+  await gehe(page, "/bank");
+  await page.getByLabel("Kontoauszugsdateien").setInputFiles({ name: "amazon-settlement.txt", mimeType: "text/plain", buffer: Buffer.from(REPORT, "utf8") });
+  // Keine Nachfrage nach dem Konto: die Datei nennt Amazon.de, das Konto steht fest. Die Abrechnung ist schon abgerufen.
+  await expect(page.getByText(/amazon-settlement\.txt: 0 neue Umsätze für Amazon\.de/)).toBeVisible();
+  await expect(page.getByLabel("Konto", { exact: true })).toHaveCount(0);
+});
+
 test("Zugang entfernen: Knopf verschwindet, Umsätze bleiben", async () => {
   await gehe(page, "/bank/verbindungen");
   await karteOeffnen();

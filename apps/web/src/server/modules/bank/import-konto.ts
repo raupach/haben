@@ -1,5 +1,5 @@
 import { PSP_FORMATS, type ParsedStatement } from "@haben/import";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { schema, type Tx } from "../../db/index.ts";
 import { accountForIban, normalizeIban } from "./accounts.ts";
 import { BankError, KontoWaehlenError } from "./bank-error.ts";
@@ -30,7 +30,9 @@ export async function importAccount(tx: Tx, statement: ParsedStatement, filename
   } else if (fileIban) {
     account = await accountForIban(tx, fileIban, statement.accountName);
   } else if (PSP_FORMATS.includes(statement.format)) {
-    throw new KontoWaehlenError(`${filename}: Export eines Zahlungsdienstleisters. Wähle das Konto des Dienstleisters.`);
+    // Eine Amazon-Abrechnung nennt ihren Marktplatz in der Datei; dann steht das Konto fest (#1947)
+    account = statement.format === "amazon-settlement" ? await amazonKontoFuerMarktplatz(tx, filename, statement.marketplace) : undefined;
+    if (!account) throw new KontoWaehlenError(`${filename}: Export eines Zahlungsdienstleisters. Wähle das Konto des Dienstleisters.`);
   } else {
     throw new KontoWaehlenError(`${filename}: Die Datei nennt keine IBAN. Wähle das Konto, zu dem sie gehört.`);
   }
@@ -55,4 +57,27 @@ export async function importAccount(tx: Tx, statement: ParsedStatement, filename
     throw new KontoWaehlenError(`${filename}: Das ist eine Amazon-Abrechnung. Wähle das Amazon-Konto.`);
   }
   return account;
+}
+
+/**
+ * Amazon-Abrechnung ohne Kontoangabe: Der Marktplatz steht in der Datei, also im einzigen Amazon-Konto dieses Marktplatzes
+ * (#1947), wie beim Abruf über die SP-API. Ohne Marktplatz oder bei mehreren Konten bleibt die Wahl beim Menschen.
+ */
+async function amazonKontoFuerMarktplatz(tx: Tx, filename: string, marketplace: string | undefined) {
+  if (!marketplace) return undefined;
+  const konten = await tx
+    .select()
+    .from(schema.bankAccounts)
+    .where(
+      and(
+        eq(schema.bankAccounts.purpose, "zahlungsdienstleister"),
+        eq(schema.bankAccounts.provider, "amazon"),
+        sql`lower(${schema.bankAccounts.marketplace}) = lower(${marketplace})`,
+      ),
+    );
+  if (konten.length === 1) return konten[0];
+  if (konten.length > 1) throw new KontoWaehlenError(`${filename}: Zu ${marketplace} gibt es ${konten.length} Amazon-Konten. Wähle das richtige.`);
+  throw new KontoWaehlenError(
+    `${filename}: Es gibt noch kein Amazon-Konto für ${marketplace}. Lege eins über „Konto verbinden › Zahlungsdienstleister hinzufügen › Amazon“ an und importiere die Datei dann erneut.`,
+  );
 }
