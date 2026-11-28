@@ -2451,6 +2451,20 @@
       "when": 1795872642089,
       "tag": "0349_festschreiben_quelle",
       "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1795882463301,
+      "tag": "0350_amazon_sp_abruf",
+      "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1795882479889,
+      "tag": "0351_amazon_sp_abruf_trigger",
+      "breakpoints": true
     }
   ]
 }
