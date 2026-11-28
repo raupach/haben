@@ -112,12 +112,16 @@ test("Einrichtung", async () => {
   await einrichten(page);
 });
 
-test("Die geführte Einrichtung beginnt bei Amazon gleich mit dem Konto und nennt den Zugang zur SP-API", async () => {
+test("Die Einrichtung fragt bei Amazon nach dem Weg; Konto zuerst, der Zugang steht unter Verbindungen", async () => {
   await gehe(page, "/bank/verbinden/amazon");
-  await expect(page.getByText("Schritt 1 von 3")).toBeVisible();
+  const weg = page.getByRole("form", { name: "Weg" });
+  await expect(weg.getByRole("radio", { name: "Mit Exportdatei" })).toBeVisible();
+  await expect(weg.getByRole("radio", { name: "Über die SP-API" })).toBeVisible();
+  await weg.getByRole("radio", { name: "Über die SP-API" }).check();
+  await weg.getByRole("button", { name: "Weiter" }).click();
+  await expect(page.getByText("Schritt 2 von 2")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Konto", level: 2 })).toBeVisible();
-  await expect(page.getByText(/SP-API.*Amazon-Abrechnungen/)).toBeVisible();
-  await expect(page.getByRole("form", { name: "Weg" })).toHaveCount(0);
+  await expect(page.getByLabel("Marktplatz", { exact: true })).toBeVisible();
 });
 
 test("Falsches Refresh-Token: Amazon lehnt ab, nichts wird gespeichert", async () => {
