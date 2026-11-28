@@ -84,20 +84,41 @@ export function istStore(provider: string): boolean {
   return provider === "googleplay" || provider === "appstore";
 }
 
-/**
- * Hinweis am Feld Marktplatz: ein Konto gehört zu einem Marktplatz, und der Abruf über die SP-API (#1947) steht unter
- * Verbindungen, weil er nicht je Konto eingerichtet wird
- */
-export function kontoHinweis(): string {
-  return "Ein Amazon-Konto gehört zu genau einem Marktplatz; Haben lehnt Abrechnungen eines anderen ab. Den Abruf über die SP-API richtest du unter Geld › Verbindungen in Amazon-Abrechnungen ein.";
-}
-
 export function dateiWeg(provider: string): DateiWeg | null {
   return DATEI_WEGE[provider as PaymentProvider] ?? null;
 }
 
+/**
+ * Anbieter ohne Adapter, die trotzdem über eine Schnittstelle abrufen (#1947): Amazon holt die Abrechnungen über die
+ * SP-API, die Konten entstehen dabei mit der Exportdatei. Die Reihenfolge ist der Vorschlag im Schritt „Weg“.
+ */
+const OHNE_ADAPTER: Partial<Record<PaymentProvider, readonly PspWeg[]>> = { amazon: ["datei", "api"] };
+
+const WEG_LABEL: Record<PspWeg, string> = {
+  api: "Über die API",
+  datei: "Mit Exportdatei",
+  bereich: "Unter Verbindungen",
+  konto: "Nur Konto",
+};
+
+/** Amazon ruft ohne Adapter über die SP-API ab (#1947); der Name sagt es deutlicher als „API“ */
+export const wegLabel = (weg: PspWeg, provider: string) => (weg === "api" && provider === "amazon" ? "Über die SP-API" : WEG_LABEL[weg]);
+
+/** Was ein Weg tut, unter seinem Namen (Schritt „Weg“) */
+export function wegHinweis(weg: PspWeg, provider: string, name: string): string {
+  if (weg === "api" && provider === "amazon")
+    return "Haben holt die Abrechnungen über die Selling Partner API. Den Zugang trägst du nach dem Konto unter Geld › Verbindungen in Amazon-Abrechnungen ein.";
+  if (weg === "api") return `Haben holt neue Umsätze selbst, täglich oder stündlich. Du brauchst einen Zugang mit Leserecht bei ${name}.`;
+  if (weg === "datei")
+    return `Du lädst den Export (${dateiWeg(provider)?.datei}) bei ${name} herunter und importierst ihn. Gut für Zeiträume vor dem ersten Abruf.`;
+  if (weg === "bereich") return `Haben ruft ${name} über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.`;
+  return "Ein Konto mit eigenem Verrechnungskonto; die Umsätze erfasst du per Hand.";
+}
+
 /** Die Wege eines Anbieters, der empfohlene zuerst; `mitAdapter`: Haben ruft ihn über die API ab */
 export function wegeVon(provider: string, mitAdapter: boolean): PspWeg[] {
+  const ohneAdapter = OHNE_ADAPTER[provider as PaymentProvider];
+  if (!mitAdapter && ohneAdapter) return [...ohneAdapter];
   const wege: PspWeg[] = [];
   if (mitAdapter) wege.push("api");
   if (bereichAnker(provider)) wege.push("bereich");
@@ -109,7 +130,7 @@ export function wegeVon(provider: string, mitAdapter: boolean): PspWeg[] {
 export function wegText(provider: string, wege: readonly PspWeg[], zugang: string | null): string {
   const datei = dateiWeg(provider)?.datei;
   const teile = wege.map((w) => {
-    if (w === "api") return zugang ? `Abruf mit ${zugang}` : "Abruf über die API";
+    if (w === "api") return zugang ? `Abruf mit ${zugang}` : provider === "amazon" ? "Abruf über die SP-API" : "Abruf über die API";
     if (w === "datei") return `${datei} als Datei`;
     if (w === "bereich") return "Abruf über Etsy unter Verbindungen";
     return istStore(provider) ? "Konto, dann Finanzberichte über die Verbindung unter Verbindungen" : "nur Konto, Umsätze per Hand";

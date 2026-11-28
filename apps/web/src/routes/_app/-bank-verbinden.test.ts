@@ -68,7 +68,7 @@ describe("„Zahlungsdienstleister hinzufügen“ (#1951, #2008)", () => {
   it("jeder Anbieter ist wählbar, auch „Anderer Zahlungsdienstleister“, mit seinem Weg und Konten ohne Verbindung", () => {
     expect(wahl.every((w) => w.gesperrt === null)).toBe(true);
     expect(wahl.at(-1)?.wert).toBe("sonstige");
-    expect(zu("amazon")?.hint).toBe("Settlement Report (Flatfile V2) als Datei · Konto: „Amazon.de“");
+    expect(zu("amazon")?.hint).toBe("Settlement Report (Flatfile V2) als Datei oder Abruf über die SP-API · Konto: „Amazon.de“");
     expect(zu("etsy")?.hint).toBe("Abruf über Etsy unter Verbindungen oder Monatsabrechnung (CSV) als Datei · noch kein Konto");
     expect(zu("googleplay")?.hint).toBe("Konto, dann Finanzberichte über die Verbindung unter Verbindungen · noch kein Konto");
     expect(zu("sumup")?.hint).toBe("nur Konto, Umsätze per Hand · noch kein Konto");

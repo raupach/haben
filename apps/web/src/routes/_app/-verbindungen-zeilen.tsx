@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { quelleText } from "../../components/ExterneQuelle.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { stichtagText } from "../../components/ImportKonflikt.tsx";
+import { amazonMenuePunkt } from "../../components/AmazonAbruf.tsx";
 import { type ActionMenuItem, MoreActionsMenu } from "../../components/MoreActionsMenu.tsx";
 import { Status } from "../../components/Status.tsx";
 import { RHYTHMUS_LABELS } from "../../components/ZahlungsdienstleisterFormular.tsx";
@@ -21,6 +22,8 @@ import type { Data } from "./-bank-daten.ts";
 type Seite = Pick<Data, "accounts" | "sync" | "fints" | "zahlungsdienstleister" | "karten"> & {
   quellen: { accountId: string; provider: string; externalAccountId: string; cutoverDate: string | null; checkpoint: string | null; complete: boolean }[];
   gebundeneKonten: string[];
+  /** Amazon-Zugang zur SP-API (#1947): mit ihm ruft die Zeile über die API ab statt nur Dateien zu nehmen */
+  amazon: { configured: boolean };
 };
 
 /** Was eine Zeile über das Konto oder die Verbindung zeigt, gleich ob mit Konto oder ohne */
@@ -63,6 +66,8 @@ function weg(data: Seite, karte: Kontokarte, iban: string | null, provider: stri
   if (eb) return { kennung: kennungAus(eb.aspspName, "Abruf", kurz), abruf: `${karte.quelle}${stichtagText(data.sync.stichtage, karte.id)}` };
   if (fints) return { kennung: kennungAus(fints.bankName, "FinTS", kurz), abruf: karte.quelle };
   const anbieter = provider ? (PAYMENT_PROVIDERS[provider as keyof typeof PAYMENT_PROVIDERS]?.label ?? provider) : null;
+  // Amazon ruft seit #1947 über die SP-API ab; die Dateien bleiben für Zeiträume davor
+  if (provider === "amazon" && data.amazon.configured) return { kennung: kennungAus(anbieter, "API", kurz), abruf: karte.quelle };
   return { kennung: kennungAus(anbieter, "Datei", kurz), abruf: karte.quelle };
 }
 
@@ -146,6 +151,7 @@ export function zeilenMenue(
     istBank,
     gebunden,
     dateiFuer,
+    amazon,
   }: {
     abruf: KontoAbruf;
     dateiFuer: (id: string) => void;
@@ -156,6 +162,8 @@ export function zeilenMenue(
     istBank: boolean;
     /** Ein Abruf in Haben oder eine externe Quelle schreibt ins Konto */
     gebunden: boolean;
+    /** Amazon-Konten bekommen einen Menüpunkt für den SP-API-Abruf (#1947) */
+    amazon?: { konten: Set<string>; starten: () => void; laeuft: boolean } | null;
   },
 ): ActionMenuItem[] {
   const z = zeile.zugang;
@@ -167,6 +175,7 @@ export function zeilenMenue(
   const grund = (mitTrennen: boolean) => (f && abruf.fints.grund(f, mitTrennen) ? grundId(f, zeile, abruf) : undefined);
   // Konten ohne Abruf bekommen Dateien; in ein abgerufenes (auch Etsy) oder eines mit externer Quelle nicht, solange #1988 offen ist
   if (id && !z && !gebunden) items.push({ key: "datei", label: "Datei importieren …", onSelect: () => dateiFuer(id) });
+  if (id && amazon?.konten.has(id)) items.push(amazonMenuePunkt(amazon));
   if (id) items.push({ key: "name", label: "Name und Zweck …", onSelect: () => nameUndZweck(id) });
   if (z) {
     const label = z.art === "psp" ? "Bearbeiten …" : z.art === "fints" ? "Zugang ändern" : "Neu anmelden";

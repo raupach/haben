@@ -90,13 +90,14 @@ test.afterEach(() => {
 
 /** Der eingeklappte Abschnitt „Amazon-Abrechnungen“ in Stores und Marktplätze (EinklappAbschnitt, id „amazon“) */
 const karte = () => page.locator('section[aria-labelledby="amazon"]');
+/** „Amazon Datenabruf“ steht im Abschnitt und im ⋯ der Amazon-Karte auf der Bankseite (#1947) */
+const knopf = () => karte().getByRole("button", { name: /^Amazon Datenabruf( läuft …)?$/ });
 /** Klappt den Abschnitt auf; nach dem Speichern bleibt er offen, weil ihn die Seite hält */
 async function karteOeffnen() {
   const details = karte().locator("details");
   if (!(await details.evaluate((element: HTMLDetailsElement) => element.open))) await karte().locator("summary").click();
   await expect(details).toHaveAttribute("open", "");
 }
-const knopf = () => page.getByRole("button", { name: /^Amazon Datenabruf( läuft …)?$/ });
 
 async function mitDatenbank<T>(arbeit: (sql: postgres.Sql) => Promise<T>): Promise<T> {
   const sql = postgres(databaseUrlFuer("amazon-abruf"), { max: 1, onnotice: () => {} });
@@ -146,26 +147,30 @@ test("Zugang speichern: geprüft, verschlüsselt, nur die letzten Zeichen sichtb
 });
 
 test("Ohne Amazon-Konto kein Knopf; mit Konto holt der Abruf die Abrechnung, gesperrt solange er läuft", async () => {
-  await gehe(page, "/bank");
+  await gehe(page, "/bank/verbindungen");
+  await karteOeffnen();
+  await expect(page.getByText(/Lege je Marktplatz ein Amazon-Konto an/)).toBeVisible();
   await expect(knopf()).toHaveCount(0);
   await mitDatenbank(
     (sql) =>
       sql`insert into bank_accounts (name, purpose, provider, ledger_index, marketplace) values ('Amazon.de', 'zahlungsdienstleister', 'amazon', 1, 'Amazon.de')`,
   );
-  await gehe(page, "/bank");
+  await gehe(page, "/bank/verbindungen");
+  await karteOeffnen();
   tor = new Promise<void>((resolve) => (freigeben = resolve));
   try {
     await knopf().click();
-    await expect(page.getByRole("button", { name: "Amazon Datenabruf läuft …" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Abbrechen" })).toBeVisible();
-    await expect(page.getByText(/Report 1 von 1/)).toBeVisible();
+    await expect(karte().getByRole("button", { name: "Amazon Datenabruf läuft …" })).toBeDisabled();
+    await expect(karte().getByRole("button", { name: "Abbrechen" })).toBeVisible();
+    await expect(karte().getByText(/Report 1 von 1/)).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("button", { name: "Amazon Datenabruf läuft …" })).toBeDisabled();
-    await expect(page.getByText(/Report 1 von 1/)).toBeVisible();
+    await karteOeffnen();
+    await expect(karte().getByRole("button", { name: "Amazon Datenabruf läuft …" })).toBeDisabled();
+    await expect(karte().getByText(/Report 1 von 1/)).toBeVisible();
     freigeben?.();
-    const meldung = page.getByText("Amazon.de: 1 Abrechnung, 3 neue Umsätze");
+    const meldung = karte().getByText("Amazon.de: 1 Abrechnung, 3 neue Umsätze");
     await expect(meldung).toBeVisible();
-    await page.getByRole("button", { name: "Meldungen schließen" }).click();
+    await karte().getByRole("button", { name: "Meldungen schließen" }).click();
     await expect(meldung).toHaveCount(0);
   } finally {
     freigeben?.();
@@ -173,7 +178,7 @@ test("Ohne Amazon-Konto kein Knopf; mit Konto holt der Abruf die Abrechnung, ges
   expect(await mitDatenbank((sql) => sql`select count(*)::int as n from bank_transactions`)).toEqual([{ n: 3 }]);
 
   await knopf().click();
-  await expect(page.getByText("Keine neuen Abrechnungen bei Amazon (1 schon abgerufen).")).toBeVisible();
+  await expect(karte().getByText("Keine neuen Abrechnungen bei Amazon (1 schon abgerufen).")).toBeVisible();
   expect(await mitDatenbank((sql) => sql`select count(*)::int as n from bank_transactions`)).toEqual([{ n: 3 }]);
 });
 
@@ -191,7 +196,6 @@ test("Zugang entfernen: Knopf verschwindet, Umsätze bleiben", async () => {
   await karte().getByRole("button", { name: "Zugang entfernen" }).click();
   await page.getByRole("dialog", { name: "Amazon-Zugang entfernen?" }).getByRole("button", { name: "Entfernen" }).click();
   await expect(karte()).toContainText("nicht verbunden");
-  await gehe(page, "/bank");
   await expect(knopf()).toHaveCount(0);
   expect(await mitDatenbank((sql) => sql`select count(*)::int as n from bank_transactions`)).toEqual([{ n: 3 }]);
 });

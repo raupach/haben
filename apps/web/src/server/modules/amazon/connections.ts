@@ -1,5 +1,5 @@
 import { AmazonSpApiError, AmazonSpClient, type AmazonSpClientOptions } from "@haben/import";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { decrypt, encrypt } from "../../crypto.ts";
 import { withActor } from "../../db/actor.ts";
@@ -95,10 +95,16 @@ export async function deleteAmazonSpConnection(actor: string): Promise<void> {
   await withActor(actor, (tx) => tx.delete(schema.amazonSpConnections).where(eq(schema.amazonSpConnections.id, "amazon")));
 }
 
-/** Für die Einstellungen: Stand ohne Geheimnisse */
+/** Für die Seite Verbindungen: Stand ohne Geheimnisse und die Zahl der Amazon-Konten, in die der Abruf schreiben kann */
 export async function amazonSpSummary() {
-  const row = await loadRow();
-  return { configured: row !== null, keyHint: row?.keyHint ?? "", updatedAt: row?.updatedAt ?? null };
+  const [row, konten] = await Promise.all([
+    loadRow(),
+    db
+      .select({ id: schema.bankAccounts.id })
+      .from(schema.bankAccounts)
+      .where(and(eq(schema.bankAccounts.purpose, "zahlungsdienstleister"), eq(schema.bankAccounts.provider, "amazon"))),
+  ]);
+  return { configured: row !== null, keyHint: row?.keyHint ?? "", updatedAt: row?.updatedAt ?? null, konten: konten.length };
 }
 
 export async function amazonSpEingerichtet(): Promise<boolean> {

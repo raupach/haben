@@ -1,10 +1,11 @@
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
-import type { ImportMessage } from "../../components/BankImportMeldungen.tsx";
-import { restMinuten } from "../../lib/amazon-restzeit.ts";
-import { errorMessage } from "../../lib/format.ts";
-import { amazonDatenabrufAbbrechenFn, amazonDatenabrufStandFn, amazonDatenabrufStartenFn } from "../../server/functions/amazon.ts";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import type { ActionMenuItem } from "./MoreActionsMenu.tsx";
+import type { ImportMessage } from "./BankImportMeldungen.tsx";
+import { restMinuten } from "../lib/amazon-restzeit.ts";
+import { errorMessage } from "../lib/format.ts";
+import { amazonDatenabrufAbbrechenFn, amazonDatenabrufStandFn, amazonDatenabrufStartenFn } from "../server/functions/amazon.ts";
 
 type Stand = NonNullable<Awaited<ReturnType<typeof amazonDatenabrufStandFn>>>;
 
@@ -32,19 +33,11 @@ const NICHT_VERFUEGBAR =
 const NICHT_ABFRAGBAR = "Der Stand des Abrufs lässt sich nicht abfragen. Lade die Seite neu; erneut „Amazon Datenabruf“ macht dort weiter, wo er war.";
 
 /**
- * „Amazon Datenabruf“ (#1947): startet den Abruf im Hintergrund und zeigt seinen Fortschritt; der Stand wird alle 2 s
- * abgefragt, auch nach Neuladen der Seite. Die Statuszeile zeigt die Bankseite unter den Knöpfen (`onStatus`), am Ende
- * stehen die Meldungen wie die des Dateiimports darunter.
+ * „Amazon Datenabruf“ (#1947): startet den Abruf im Hintergrund und hält seinen Fortschritt; der Stand wird alle 2 s
+ * abgefragt, auch nach Neuladen der Seite. Der Abschnitt Amazon-Abrechnungen, die Zeilen unter Verbindungen und das ⋯ der
+ * Amazon-Karte auf der Bankseite nutzen denselben Aufruf; die Meldungen am Ende gehen an `onMessages`.
  */
-export function AmazonDatenabrufKnopf({
-  disabled,
-  onMessages,
-  onStatus,
-}: {
-  disabled: boolean;
-  onMessages: (messages: ImportMessage[]) => void;
-  onStatus: (text: LaufText | null) => void;
-}) {
+export function useAmazonAbruf(onMessages: (messages: ImportMessage[]) => void) {
   const router = useRouter();
   const starten = useServerFn(amazonDatenabrufStartenFn);
   const abfragen = useServerFn(amazonDatenabrufStandFn);
@@ -60,11 +53,19 @@ export function AmazonDatenabrufKnopf({
       .catch(() => {});
   }, [abfragen]);
 
+  // Läuft der Abruf an anderer Stelle (Abschnitt, Karte, andere Seite), soll ihn auch diese Seite zeigen: alle 5 s fragen,
+  // solange hier nichts läuft
   useEffect(() => {
-    onStatus(laeuft && stand ? laufText(stand) : null);
-  }, [laeuft, stand, onStatus]);
-
-  useEffect(() => () => onStatus(null), [onStatus]);
+    if (laeuft) return;
+    const timer = setInterval(() => {
+      void abfragen()
+        .then((s) => {
+          if (s?.laeuft) setStand(s);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [laeuft, abfragen]);
 
   useEffect(() => {
     if (!laeuft) return;
@@ -105,33 +106,68 @@ export function AmazonDatenabrufKnopf({
     };
   }, [laeuft, abfragen, onMessages, router]);
 
-  async function onStart() {
+  const start = useCallback(async () => {
     onMessages([]);
     try {
       setStand(await starten());
     } catch (error) {
       onMessages([{ tone: "danger", text: errorMessage(error) }]);
     }
-  }
+  }, [starten, onMessages]);
 
+  const abbrechenJetzt = useCallback(async () => {
+    try {
+      const s = await abbrechen();
+      if (s) setStand(s);
+    } catch (error) {
+      onMessages([{ tone: "danger", text: errorMessage(error) }]);
+    }
+  }, [abbrechen, onMessages]);
+
+  return { laeuft, stand, abbrechenAngefragt: stand?.abbrechenAngefragt ?? false, start, abbrechen: abbrechenJetzt };
+}
+
+export type AmazonAbruf = ReturnType<typeof useAmazonAbruf>;
+
+/** Knopf und Abbrechen; der Aufrufer entscheidet, wo der Fortschritt steht */
+export function AmazonDatenabrufKnopf({ abruf, disabled = false }: { abruf: AmazonAbruf; disabled?: boolean }) {
   return (
     <>
-      <button type="button" className="btn" disabled={disabled || laeuft} onClick={() => void onStart()}>
-        {laeuft ? "Amazon Datenabruf läuft …" : "Amazon Datenabruf"}
+      <button type="button" className="btn" disabled={disabled || abruf.laeuft} onClick={() => void abruf.start()}>
+        {abruf.laeuft ? "Amazon Datenabruf läuft …" : "Amazon Datenabruf"}
       </button>
-      {laeuft && (
-        <button
-          type="button"
-          className="btn"
-          disabled={stand?.abbrechenAngefragt}
-          onClick={() =>
-            void abbrechen()
-              .then((s) => s && setStand(s))
-              .catch((e) => onMessages([{ tone: "danger", text: errorMessage(e) }]))
-          }
-        >
+      {abruf.laeuft && (
+        <button type="button" className="btn" disabled={abruf.abbrechenAngefragt} onClick={() => void abruf.abbrechen()}>
           Abbrechen
         </button>
+      )}
+    </>
+  );
+}
+
+/** Menüpunkt „Amazon Datenabruf“ für Zeile und Karte; während des Laufs gesperrt und mit „läuft …“ (#1947) */
+export function amazonMenuePunkt(amazon: { starten: () => void; laeuft: boolean }): ActionMenuItem {
+  return {
+    key: "amazon",
+    label: amazon.laeuft ? "Amazon Datenabruf läuft …" : "Amazon Datenabruf",
+    disabled: amazon.laeuft,
+    onSelect: amazon.starten,
+  };
+}
+
+/** Fortschritt des Abrufs: die Phase für die Live-Region, „zuletzt“ darunter; null, solange nichts läuft */
+export function AmazonAbrufStatus({ abruf, ausrichtung }: { abruf: AmazonAbruf; ausrichtung?: "left" | "right" }): ReactNode {
+  if (!abruf.laeuft || !abruf.stand) return null;
+  const text = laufText(abruf.stand);
+  return (
+    <>
+      <p className="small muted" role="status" style={{ margin: 0, textAlign: ausrichtung ?? "left" }}>
+        {text.phase}
+      </p>
+      {text.zuletzt && (
+        <p className="small muted" style={{ margin: 0, textAlign: ausrichtung ?? "left" }}>
+          zuletzt: {text.zuletzt}
+        </p>
       )}
     </>
   );

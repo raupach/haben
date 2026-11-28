@@ -8,7 +8,7 @@ import { Field } from "../../components/Field.tsx";
 import { UploadButton } from "../../components/UploadButton.tsx";
 import type { PspDaten } from "../../components/ZahlungsdienstleisterFormular.tsx";
 import { errorMessage } from "../../lib/format.ts";
-import { dateiWeg, istStore, kontoHinweis, type PspWeg } from "../../lib/psp-wege.ts";
+import { dateiWeg, istStore, type PspWeg, wegHinweis, wegLabel } from "../../lib/psp-wege.ts";
 import { addProviderAccount, importStatements } from "../../server/functions/bank.ts";
 import { hatMarktplatzKonto } from "./-bank-daten.ts";
 import { SchrittKarte } from "./-bank-einrichtung.tsx";
@@ -23,22 +23,6 @@ export type { KontoWahl };
  * Konto, Datei mit der Anleitung des Formats, Ergebnis. Den Rahmen und die Schrittleiste stellt die Route
  * (bank_.verbinden.$anbieter.tsx); den Weg über die API die Schritte in -bank-einrichtung.tsx.
  */
-
-const WEG_LABEL: Record<PspWeg, string> = {
-  api: "Über die API",
-  datei: "Mit Exportdatei",
-  bereich: "Unter Verbindungen",
-  konto: "Nur Konto",
-};
-
-/** Was ein Weg tut, unter seinem Namen */
-function wegHinweis(weg: PspWeg, provider: string, name: string): string {
-  if (weg === "api") return `Haben holt neue Umsätze selbst, täglich oder stündlich. Du brauchst einen Zugang mit Leserecht bei ${name}.`;
-  if (weg === "datei")
-    return `Du lädst den Export (${dateiWeg(provider)?.datei}) bei ${name} herunter und importierst ihn. Gut für Zeiträume vor dem ersten Abruf.`;
-  if (weg === "bereich") return `Haben ruft ${name} über die Verbindung unter Geld › Verbindungen ab und legt das Konto dabei selbst an.`;
-  return "Ein Konto mit eigenem Verrechnungskonto; die Umsätze erfasst du per Hand.";
-}
 
 /** Schritt „Weg“: über die API, mit Datei oder unter Verbindungen */
 export function WegSchritt({
@@ -73,7 +57,7 @@ export function WegSchritt({
               <label className="checkbox">
                 <input type="radio" name={id} value={w} checked={weg === w} onChange={() => setWeg(w)} aria-describedby={`${id}-${w}`} />
                 <span>
-                  {WEG_LABEL[w]}
+                  {wegLabel(w, provider)}
                   {i === 0 && wege.length > 1 && w === "api" ? " (empfohlen)" : ""}
                 </span>
               </label>
@@ -182,7 +166,7 @@ export function KontoSchritt({
           </Field>
         )}
         {neu && provider === "amazon" && (
-          <Field label="Marktplatz" hint={kontoHinweis()}>
+          <Field label="Marktplatz" hint="Ein Amazon-Konto gehört zu genau einem Marktplatz; Haben lehnt Abrechnungen eines anderen ab.">
             {(control) => (
               <select
                 {...control}

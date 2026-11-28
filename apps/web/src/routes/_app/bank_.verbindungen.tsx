@@ -1,6 +1,7 @@
 import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod/mini";
+import { AmazonAbrufStatus, useAmazonAbruf } from "../../components/AmazonAbruf.tsx";
 import { AmazonSpApiCard } from "../../components/AmazonSpApiCard.tsx";
 import { ExcludedAccounts, KontoAusschliessenDialog } from "../../components/BankKontoAusschliessen.tsx";
 import { EtsyPaymentsCard } from "../../components/EtsyPaymentsCard.tsx";
@@ -63,6 +64,8 @@ function VerbindungenPage() {
   });
   // Ohne gewähltes Konto: der Kopf importiert nichts, aber „Datei importieren“ einer veralteten Zeile geht in ihr Konto
   const datei = useDateiImport({ accounts: data.accounts, allAccounts: true, accountId: null });
+  const amazonAbruf = useAmazonAbruf(datei.setMessages);
+  const amazonKonten = new Set(data.accounts.filter((a) => a.provider === "amazon").map((a) => a.id));
   const [dialog, setDialog] = useState<{ art: "name" | "quelle" | "ausschliessen"; id: string } | null>(null);
   const [hinweis, setHinweis] = useState<Notice>(null);
   const [verbinden, setVerbinden] = useState<VerbindenDialog>(null);
@@ -82,7 +85,12 @@ function VerbindungenPage() {
       ausschliessen,
       kannQuelle: zeile.kontoId !== null && !data.gebundeneKonten.includes(zeile.kontoId) && !data.quellen.some((q) => q.accountId === zeile.kontoId),
       istBank: data.accounts.some((a) => a.id === zeile.kontoId && a.purpose !== "zahlungsdienstleister"),
-      gebunden: zeile.kontoId !== null && (data.gebundeneKonten.includes(zeile.kontoId) || data.quellen.some((q) => q.accountId === zeile.kontoId)),
+      // Amazon nimmt weiter Dateien an (#2011/#1947): Abruf und Datei liefern denselben Report, das Protokoll erkennt ihn
+      gebunden:
+        zeile.kontoId !== null &&
+        (data.quellen.some((q) => q.accountId === zeile.kontoId) || (data.gebundeneKonten.includes(zeile.kontoId) && !amazonKonten.has(zeile.kontoId))),
+      amazon:
+        data.amazon.configured && amazonKonten.size > 0 ? { konten: amazonKonten, starten: () => void amazonAbruf.start(), laeuft: amazonAbruf.laeuft } : null,
     });
   // Der Name öffnet, was die Verbindung einrichtet: Zugang und Zeitraum, ohne Verbindung Name und Zweck
   const onName = (zeile: Zeile) => {
@@ -117,6 +125,7 @@ function VerbindungenPage() {
       {datei.zielFeld}
       <section className="bank-abruf" aria-label="Automatischer Abruf">
         {abruf.bereich}
+        <AmazonAbrufStatus abruf={amazonAbruf} />
         {datei.meldungen}
         <NoticeBanner notice={hinweis} />
       </section>

@@ -1,6 +1,8 @@
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type FormEvent } from "react";
+import { ImportMeldungen, type ImportMessage } from "./BankImportMeldungen.tsx";
+import { AmazonAbrufStatus, AmazonDatenabrufKnopf, useAmazonAbruf } from "./AmazonAbruf.tsx";
 import { formatDateTime } from "../lib/format.ts";
 import { useAction } from "../lib/use-action.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
@@ -20,6 +22,8 @@ export function AmazonSpApiCard({ data }: { data: Data }) {
   const save = useServerFn(saveAmazonSpConnectionFn);
   const remove = useServerFn(removeAmazonSpConnectionFn);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [meldungen, setMeldungen] = useState<ImportMessage[]>([]);
+  const abruf = useAmazonAbruf(setMeldungen);
   const { busy, notice, run } = useAction();
   const behalten = data.configured ? " (leer lassen zum Behalten)" : "";
 
@@ -38,8 +42,8 @@ export function AmazonSpApiCard({ data }: { data: Data }) {
   return (
     <div className="stack">
       <p className="small muted" style={{ margin: 0 }}>
-        Haben holt die Abrechnungen (Settlement Reports) aller Marktplätze über die Selling Partner API und legt jede im Amazon-Konto ihres Marktplatzes ab, mit
-        „Amazon Datenabruf“ auf der Seite Bank. Dafür braucht es im{" "}
+        Haben holt die Abrechnungen (Settlement Reports) aller Marktplätze über die Selling Partner API und legt jede im Amazon-Konto ihres Marktplatzes ab;{" "}
+        <strong>Amazon Datenabruf</strong> startet den Abruf hier im Abschnitt. Dafür braucht es im{" "}
         <a href="https://solutionproviderportal.amazon.com" target="_blank" rel="noreferrer">
           Solution Provider Portal
         </a>{" "}
@@ -48,6 +52,20 @@ export function AmazonSpApiCard({ data }: { data: Data }) {
       {data.updatedAt && (
         <p className="small muted" style={{ margin: 0 }}>
           Zuletzt geändert: {formatDateTime(data.updatedAt)}.
+        </p>
+      )}
+      {data.configured && data.konten > 0 && (
+        <>
+          <div className="actions">
+            <AmazonDatenabrufKnopf abruf={abruf} />
+          </div>
+          <AmazonAbrufStatus abruf={abruf} />
+          <ImportMeldungen messages={meldungen} accounts={[]} accountId="" onImported={() => {}} onClose={() => setMeldungen([])} />
+        </>
+      )}
+      {data.configured && data.konten === 0 && (
+        <p className="small muted" style={{ margin: 0 }}>
+          Lege je Marktplatz ein Amazon-Konto an (Konto verbinden › Zahlungsdienstleister hinzufügen › Amazon); dann holt der Abruf die Abrechnungen.
         </p>
       )}
       <form className="stack" onSubmit={onSubmit}>

@@ -103,7 +103,15 @@ function Einrichtung({
       ) : weg === "api" && anbieter ? (
         <ApiWeg anbieter={anbieter} daten={daten} lauf={lauf} />
       ) : (
-        <DateiWeg provider={provider} name={name} daten={daten} nurKonto={weg === "konto"} lauf={lauf} zurueckZumWeg={mitWahl ? () => setSchritt(0) : null} />
+        <DateiWeg
+          provider={provider}
+          name={name}
+          daten={daten}
+          nurKonto={weg === "konto"}
+          nachKonto={weg === "api" ? "amazon" : null}
+          lauf={lauf}
+          zurueckZumWeg={mitWahl ? () => setSchritt(0) : null}
+        />
       )}
     </>
   );
@@ -164,6 +172,7 @@ function DateiWeg({
   name,
   daten,
   nurKonto,
+  nachKonto,
   lauf,
   zurueckZumWeg,
 }: {
@@ -171,6 +180,8 @@ function DateiWeg({
   name: string;
   daten: PspDaten;
   nurKonto: boolean;
+  /** Nach dem Konto in den Abschnitt unter Verbindungen (Amazon über die SP-API) */
+  nachKonto: "amazon" | null;
   lauf: Lauf;
   zurueckZumWeg: (() => void) | null;
 }) {
@@ -193,7 +204,8 @@ function DateiWeg({
         onWeiter={(w) => {
           setWahl(w);
           // Ein Store bekommt seinen Zugang unter Verbindungen; sonst geht es zum neuen Konto
-          if (nurKonto && w.kontoId && istStore(provider)) void navigate({ to: "/bank/verbindungen", hash: "stores" });
+          if (nachKonto && w.kontoId) void navigate({ to: "/bank/verbindungen", hash: nachKonto });
+          else if (nurKonto && w.kontoId && istStore(provider)) void navigate({ to: "/bank/verbindungen", hash: "stores" });
           else if (nurKonto && w.kontoId) void navigate({ to: "/bank", search: { konto: w.kontoId } });
           else setSchritt(1);
         }}
