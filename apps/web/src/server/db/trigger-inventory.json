@@ -3483,8 +3483,8 @@
       "config": [],
       "language": "sql",
       "securityDefiner": false,
-      "sourceHash": "be684a372b436eb0488ce88d7c1feb0a0eed0043a3ffe55acbf4aa4f18329e8a",
-      "definitionHash": "8841be6b63f2b3d5a56f6e30d6a71aa52cfafdbb749a20106a6b75a26e34533b"
+      "sourceHash": "bfbbee1b95a762499c84b866f8dfb759242352300dec7443f65fd721ed0f9ea0",
+      "definitionHash": "913900a608c9c1ff35487c6f3dc7ae1beedc9760a4b98552f0b6ed960e01e7da"
     },
     {
       "name": "public.haben_bank_duplicate(umsatz_id uuid)",
